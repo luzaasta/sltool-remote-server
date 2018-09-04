@@ -71,12 +71,31 @@ var Model = function(configFilePath) {
 };
 
 Model.prototype.load = function() {
-	var contents = fs.readFileSync(this.configFilePath, 'utf8');
+	var exists = true;
+	try {
+		exists = fs.existsSync(this.configFilePath);
+	} catch (e) {
+		throw new Error("Problem veryfing the config location!\n" + e);
+	}
+
+	if (!exists) {
+		this.save();
+		return;
+	}
+
+	var contents = "";
+	try {
+		contents = fs.readFileSync(this.configFilePath, 'utf8');
+	} catch (e) {
+		throw new Error("Problem reading the config file");
+	}
+
 	var configs = JSON.parse(contents);
 	for (var i = 0; i < configs.length; i++) {
 		this.envConfigs.push(new EnvConfig(configs[i]));
 	}
 };
+
 Model.prototype.save = function() {
 	fs.writeFileSync(this.configFilePath, JSON.stringify(this.envConfigs), 'utf8', function(err) {
 		if (err) {

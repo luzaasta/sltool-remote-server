@@ -173,22 +173,22 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 		console.log(configStates);
 	}
 
-	$scope.getEnvConfigState = function(envName) {
-		if (!configStates) {
+	$scope.getEnvConfigState = function(envName, prop) {
+		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
-		return configStates[envName];
+		return configStates[envName][prop];
 	};
 
-	$scope.getConfigListState = function(type) {
-		if (!configStates) {
+	$scope.getConfigListState = function(type, prop) {
+		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentEnv.envName][type];
+		return configStates[$scope.currentEnv.envName][type][prop];
 	};
 
 	$scope.getConfigState = function(i) {
-		if (!configStates) {
+		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
 		return configStates[$scope.currentEnv.envName][$scope.currentConfigType].configStates[i];
@@ -350,6 +350,9 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	/** ENVS */
 
 	$scope.changeEnv = function(index) {
+		if (index > $scope.envConfigs.length - 1 || index < 0) {
+			return;
+		}
 		$scope.currentEnv = $scope.envConfigs[index];
 		$scope.selectConfig(0);
 	};

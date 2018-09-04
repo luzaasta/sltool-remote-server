@@ -35,11 +35,18 @@ Array.prototype.getByKeyAndValue = function(key, value) {
 	return obj;
 };
 
+var isError = false;
+var errorMessage = "";
 var model = new Model("./data/config.json");
-model.load();
+try {
+	model.load();
+} catch (e) {
+	isError = true;
+	console.error(e);
+}
 
 // static serving
-app.use(express.static('./web/public/html/'));
+// app.use(express.static(__dirname + '\\web\\public\\view'));
 app.use('/scripts', express.static('./web/public/scripts/'));
 app.use('/styles', express.static('./web/public/styles/'));
 app.use('/angular', express.static('./node_modules/angular/'));
@@ -53,9 +60,19 @@ app.use(bodyParser.urlencoded({
 	extended: true
 }));
 
+var sendView = function(viewName, res) {
+	res.sendFile(viewName, {
+		root: __dirname + '\\web\\public\\view'
+	});
+};
+
 /** INDEX */
 app.get('/', function(req, res) {
-	res.render('index.html');
+	if (isError) {
+		sendView('error.html', res);
+	} else {
+		sendView('home.html', res);
+	}
 });
 
 /** CONFIGS */

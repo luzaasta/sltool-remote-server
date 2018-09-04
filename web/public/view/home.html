@@ -3,26 +3,53 @@
 	<meta charset="UTF-8" />
 	<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible" />
 	<base href="/" />
-	<title>Document</title>
+	<title>SL Remote Server</title>
 	<link rel="stylesheet" href="/bootstrap/bootstrap.min.css" />
 	<link rel="stylesheet" href="/fa/all.min.css" />
 	<link rel="stylesheet" href="/styles/styles.css" />
 </head>
-</head>
 <body class="bg-light">
 
-	<div class="container mt-4" ng-controller="mainController">
+	<div class="container mt-2" ng-controller="mainController">
 
+		<!-- ADDITIONAL ACTIONS -->
 		<div class="card mb-2">
+			<div class="card-body">
+				<div class="row">
+
+					<!-- new env -->
+					<div class="col-3">
+						<div class="">
+							<input name="newEnv" class="form-control" type="text" ng-model="newEnvName" placeholder="Env name" />
+						</div>
+						<div ng-show="newEnvMessage" style="color: red">{{newEnvMessage}}</div>
+					</div>
+
+					<div class="col-3">
+						<div class="">
+							<button class="btn btn-primary d-block w-100" ng-click="newEnv()" >Create new environment</button>
+						</div>
+					</div>
+
+					<div class="col-6 border-left" ng-show="envConfigs.length > 0">
+						<button class="btn btn-primary d-block w-100" ng-click="runAll()" >Run all configs for all envs</button>
+					</div>
+
+				</div>
+			</div>
+		</div>
+
+		<!-- MAIN PANEL -->
+		<div class="card" ng-show="envConfigs.length > 0">
 
 			<div class="card-header">
 				<ul class="nav nav-tabs card-header-tabs nav-fill">
 					<li class="nav-item" ng-repeat="env in envConfigs track by $index">
 						<a href="#" class="nav-link" ng-class="{'active': currentEnv.envName == env.envName}" ng-click="changeEnv($index)">
-							<span class="fa fa-circle fa-xs text-success" ng-show="getEnvConfigState(env.envName).someOk"></span>
-							<span class="fa fa-circle fa-xs text-danger" ng-show="getEnvConfigState(env.envName).someFailed"></span>
-							<span class="fa fa-circle fa-xs text-warning" ng-show="getEnvConfigState(env.envName).someNotRun"></span>
-							<span class="fa fa-circle fa-xs text-secondary" ng-show="getEnvConfigState(env.envName).noChildren"></span>
+							<span class="fa fa-circle fa-xs text-success" ng-show="getEnvConfigState(env.envName, 'someOk')"></span>
+							<span class="fa fa-circle fa-xs text-danger" ng-show="getEnvConfigState(env.envName, 'someFailed')"></span>
+							<span class="fa fa-circle fa-xs text-warning" ng-show="getEnvConfigState(env.envName, 'someNotRun')"></span>
+							<span class="fa fa-circle fa-xs text-secondary" ng-show="getEnvConfigState(env.envName, 'noChildren')"></span>
 							<span>{{env.envName}}</span>
 						</a>
 					</li>
@@ -59,10 +86,10 @@
 					<ul class="nav nav-tabs">
 						<li class="nav-item" ng-repeat="confType in configTypes track by $index">
 							<a class="nav-link" ng-class="{'active': currentConfigType == confType}" href="#" ng-click="changeConfigType($index)">
-								<span class="fa fa-circle fa-xs text-success" ng-show="getConfigListState(confType).someOk"></span>
-								<span class="fa fa-circle fa-xs text-danger" ng-show="getConfigListState(confType).someFailed"></span>
-								<span class="fa fa-circle fa-xs text-warning" ng-show="getConfigListState(confType).someNotRun"></span>
-								<span class="fa fa-circle fa-xs text-secondary" ng-show="getConfigListState(confType).noChildren"></span>
+								<span class="fa fa-circle fa-xs text-success" ng-show="getConfigListState(confType, 'someOk')"></span>
+								<span class="fa fa-circle fa-xs text-danger" ng-show="getConfigListState(confType, 'someFailed')"></span>
+								<span class="fa fa-circle fa-xs text-warning" ng-show="getConfigListState(confType, 'someNotRun')"></span>
+								<span class="fa fa-circle fa-xs text-secondary" ng-show="getConfigListState(confType, 'noChildren')"></span>
 								<span>{{confType}} Configs</span>
 							</a>
 						</li>
@@ -80,7 +107,7 @@
 									</div>
 									<div class="text-right">
 										<button class="fa fa-plus btn btn-icon text-primary" ng-click="addConfig()"></button>
-										<button class="fa fa-play btn btn-icon text-primary" ng-click="runAllOfTypeInEnv()" ng-disabled="getConfigListState(currentConfigType).noChildren" title="Run all configs in list"></button>
+										<button class="fa fa-play btn btn-icon text-primary" ng-click="runAllOfTypeInEnv()" ng-disabled="getConfigListState(currentConfigType, 'noChildren')" title="Run all configs in list"></button>
 									</div>
 								</div>
 							</div>
@@ -222,33 +249,6 @@
 						</div>
 
 					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- ADDITIONAL ACTIONS -->
-		<div class="card">
-			<div class="card-body">
-				<div class="row">
-
-					<!-- new env -->
-					<div class="col-3">
-						<div class="">
-							<input name="newEnv" class="form-control" type="text" ng-model="newEnvName" placeholder="Env name" />
-						</div>
-						<div ng-show="newEnvMessage" style="color: red">{{newEnvMessage}}</div>
-					</div>
-
-					<div class="col-3 border-right">
-						<div class="">
-							<button class="btn btn-primary d-block w-100" ng-click="newEnv()" >Create new environment</button>
-						</div>
-					</div>
-
-					<div class="col-6">
-						<button class="btn btn-primary d-block w-100" ng-click="runAll()" >Run all configs for all envs</button>
-					</div>
-
 				</div>
 			</div>
 		</div>
