@@ -3,21 +3,15 @@ var deferred = require('deferred');
 var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
-var models = require('./model');
-/*var dbRefresh = require('./db-refresh');
-var sshRefresh = require('./ssh-refresh');*/
 
+var models = require('./data/model');
 var Model = models.Model;
 var EnvConfig = models.EnvConfig;
 
 var funcMap = {};
 for (var type in EnvConfig.CONFIG_TYPE_TO_CONSTRUCTOR) {
-	funcMap[type] = require(`./${type.toLowerCase()}-refresh`);
+	funcMap[type] = require(`./connector_scripts/${type.toLowerCase()}`);
 }
-// var funcMap = {
-// 	"DB": dbRefresh,
-// 	"SSH": sshRefresh
-// };
 
 Array.prototype.indexOfByKeyAndValue = function(key, value) {
 	var i = -1;
@@ -41,11 +35,13 @@ Array.prototype.getByKeyAndValue = function(key, value) {
 	return obj;
 };
 
-var model = new Model("config.json");
+var model = new Model("./data/config.json");
 model.load();
 
 // static serving
-app.use(express.static('./public'));
+app.use(express.static('./web/public/html/'));
+app.use('/scripts', express.static('./web/public/scripts/'));
+app.use('/styles', express.static('./web/public/styles/'));
 app.use('/angular', express.static('./node_modules/angular/'));
 app.use('/bootstrap', express.static('./node_modules/bootstrap/dist/css'));
 app.use('/bootstrap', express.static('./node_modules/bootstrap/dist/js'));
