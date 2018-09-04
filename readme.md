@@ -6,4 +6,4 @@ Installation
 - run 'node app.js' in Linux
 
 Current capabilites
-- manual account refresh of accounts held in configuration file (no encryption)
+- refresh of accounts held in configuration file (no encryption) (now manual only through web)
