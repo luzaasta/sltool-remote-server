@@ -9,5 +9,8 @@
     "node-ssh": "^5.1.2",
     "pg": "^7.4.3",
     "ping": "^0.2.2"
+  },
+  "devDependencies": {
+    "nodemon": "^1.18.4"
   }
 }

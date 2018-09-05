@@ -1,7 +1,20 @@
 var fs = require('fs');
 
-var DbConfig = function(config) {
+var Config = function(config, name) {
+	if (!config) {
+		this.name = name;
+		return;
+	}
+
 	this.name = config.name;
+};
+
+var DbConfig = function(config, name) {
+	Config.call(this, config, name);
+
+	if (!config) {
+		return;
+	}
 	this.db_type = config.db_type;
 	this.db = config.db;
 	this.user = config.user;
@@ -10,23 +23,37 @@ var DbConfig = function(config) {
 	this.port = config.port;
 	this.schema = config.schema;
 	this.table = config.table;
+	this.lastRun = config.lastRun;
 };
 
+DbConfig.prototype = Object.create(Config.prototype);
+DbConfig.prototype.constructor = DbConfig;
 DbConfig.prototype.clone = function() {
 	return new DbConfig(this);
 };
 
-var SshConfig = function(config) {
-	this.name = config.name;
+var SshConfig = function(config, name) {
+	Config.call(this, config, name);
+
+	if (!config) {
+		this.connectionConf = new SshConnectionConf();
+		return;
+	}
 	this.connectionConf = new SshConnectionConf(config.connectionConf);
 	this.pathTest = config.pathTest;
+	this.lastRun = config.lastRun;
 };
 
+SshConfig.prototype = Object.create(Config.prototype);
+SshConfig.prototype.constructor = SshConfig;
 SshConfig.prototype.clone = function() {
 	return new SshConfig(this);
 };
 
 var SshConnectionConf = function(config) {
+	if (!config) {
+		return;
+	}
 	this.host = config.host;
 	this.username = config.username;
 	this.password = config.password;
@@ -108,5 +135,6 @@ Model.prototype.save = function() {
 
 module.exports = {
 	Model: Model,
-	EnvConfig: EnvConfig
+	EnvConfig: EnvConfig,
+	Config: Config
 };

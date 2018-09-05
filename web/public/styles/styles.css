@@ -86,3 +86,9 @@ form {
     transform: rotate(360deg);
   }
 }
+
+.date-sub {
+  margin-left: 1.3em;
+  font-size: 0.8em;
+  color: #a9a9a9;
+}

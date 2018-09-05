@@ -6,6 +6,7 @@ var bodyParser = require('body-parser');
 
 var models = require('./data/model');
 var Model = models.Model;
+var Config = models.Config;
 var EnvConfig = models.EnvConfig;
 
 var funcMap = {};
@@ -75,20 +76,6 @@ app.get('/', function(req, res) {
 	}
 });
 
-/** CONFIGS */
-
-app.get('/duplicateConfig/:env/:cfg/:index', function(req, res) {
-	var envName = req.params.env;
-	var configType = req.params.cfg;
-	var index = req.params.index;
-
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	var newConfig = env[configType][index].clone();
-	env[configType].push(newConfig);
-	model.save();
-
-	res.json(newConfig);
-});
 
 app.get('/ping/:id', function(req, res) {
 
@@ -180,6 +167,75 @@ app.delete('/env/:id', function(req, res) {
 	});
 });
 
+/** CONFIGS */
+
+//create
+app.post('/config', function(req, res) {
+	var envName = req.body.envName;
+	var configType = req.body.configType;
+	var configName = req.body.configName;
+	var env = model.envConfigs.getByKeyAndValue('envName', envName);
+	if (env === null) {
+		res.status(400).json({
+			message: 'Env does not exist!'
+		});
+		return;
+	}
+
+	var config = new EnvConfig.CONFIG_TYPE_TO_CONSTRUCTOR[configType](null, configName);
+	env[configType].push(config);
+	model.save();
+	res.json({
+		config: config,
+		message: 'Config created!'
+	});
+});
+
+app.delete('/config/:env/:cfg/:id', function(req, res) {
+	var envName = req.params.env;
+	var configType = req.params.cfg;
+	var index = req.params.id;
+	var env = model.envConfigs.getByKeyAndValue('envName', envName);
+	if (env === null) {
+		res.status(404).json({
+			message: 'Unknown env!'
+		});
+		return;
+	}
+
+	env[configType].splice(index, 1);
+	model.save();
+	res.json({
+		index: index,
+		message: 'Config removed!'
+	});
+});
+
+// replace
+app.put('/config/:env/:cfg/:id', function(req, res) {
+	var envName = req.params.env;
+	var configType = req.params.cfg;
+	var index = req.params.id;
+	var env = model.envConfigs.getByKeyAndValue('envName', envName);
+	if (env === null) {
+		res.status(404).json({
+			message: 'Unknown env!'
+		});
+		return;
+	}
+
+	var data = req.body;
+
+	for(var prop in data) {
+		env[configType][index][prop] = data[prop];
+	}
+
+	model.save();
+	res.json({
+		config: env[configType][index],
+		message: 'Config created!'
+	});
+});
 
 /** FUNCTIONS */
 
@@ -257,10 +313,10 @@ app.get('/refresh/:env/:cfg', function(req, res) {
 	});
 });
 
-app.get('/refresh/:env/:cfg/:index', function(req, res) {
+app.get('/refresh/:env/:cfg/:id', function(req, res) {
 	var envName = req.params.env;
 	var configType = req.params.cfg;
-	var index = req.params.index;
+	var index = req.params.id;
 	var env = model.envConfigs.getByKeyAndValue('envName', envName);
 	if (env === null) {
 		res.status(404).json({
@@ -298,6 +354,9 @@ function runSingleInEnv(envConfig, configType, index, result) {
 	result[envConfig.envName][configType][index].message = "";
 
 	funcMap[configType](envConfig[configType][index], result[envConfig.envName][configType][index]).then(function() {
+		var date = +new Date();
+		result[envConfig.envName][configType][index].lastRun = date;
+		envConfig[configType][index].lastRun = date;
 		def.resolve();
 	});
 

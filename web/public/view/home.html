@@ -15,6 +15,7 @@
 		<!-- ADDITIONAL ACTIONS -->
 		<div class="card mb-2">
 			<div class="card-body">
+
 				<div class="row">
 
 					<!-- new env -->
@@ -22,7 +23,6 @@
 						<div class="">
 							<input name="newEnv" class="form-control" type="text" ng-model="newEnvName" placeholder="Env name" />
 						</div>
-						<div ng-show="newEnvMessage" style="color: red">{{newEnvMessage}}</div>
 					</div>
 
 					<div class="col-3">
@@ -31,7 +31,7 @@
 						</div>
 					</div>
 
-					<div class="col-6 border-left" ng-show="envConfigs.length > 0">
+					<div class="col-6 border-left" ng-show="envConfigs.length &gt; 0">
 						<button class="btn btn-primary d-block w-100" ng-click="runAll()" >Run all configs for all envs</button>
 					</div>
 
@@ -40,8 +40,7 @@
 		</div>
 
 		<!-- MAIN PANEL -->
-		<div class="card" ng-show="envConfigs.length > 0">
-
+		<div ng-show="envConfigs.length &gt; 0" class="card">
 			<div class="card-header">
 				<ul class="nav nav-tabs card-header-tabs nav-fill">
 					<li class="nav-item" ng-repeat="env in envConfigs track by $index">
@@ -106,7 +105,7 @@
 										<span>List of configs</span>
 									</div>
 									<div class="text-right">
-										<button class="fa fa-plus btn btn-icon text-primary" ng-click="addConfig()"></button>
+										<button class="fa fa-plus btn btn-icon text-primary" ng-click="addConfig()" title="Add new config to list"></button>
 										<button class="fa fa-play btn btn-icon text-primary" ng-click="runAllOfTypeInEnv()" ng-disabled="getConfigListState(currentConfigType, 'noChildren')" title="Run all configs in list"></button>
 									</div>
 								</div>
@@ -124,10 +123,13 @@
 												<a href="#" ng-class="{'disabled': currentConfigIndex == $index}"" class="nav-link" ng-click="selectConfig($index)">{{conf.name}}</a>
 											</div>
 											<div class="col-5 text-center">
-												<button class="fa fa-circle btn btn-icon config-item-action {{getConfigState($index)}}" ng-click="showRunMessage()" title="{{}}"></button>
-												<button class="fas fa-trash-alt btn btn-icon text-danger config-item-action" ng-click="removeConfig($index)"></button>
+												<span class="fa fa-circle config-item-action {{getConfigState($index)}}" ng-click="showRunMessage()" title="TODO"></span>
+												<button class="fas fa-trash-alt btn btn-icon text-danger config-item-action" ng-click="removeConfig($index)" title="Remove this config"></button>
 												<button class="fas fa-copy btn btn-icon text-primary config-item-action" ng-click="duplicateConfig($index)" title="Duplicat this config"></button>
 												<button class="fa fa-play btn btn-icon text-primary config-item-action" ng-click="runSingleInEnv($index)" title="Run this config"></button>
+											</div>
+											<div class="col-12">
+												<span class="date-sub">Last run: {{getDate(conf)}}</span>
 											</div>
 										</div>
 									</div>
@@ -184,7 +186,7 @@
 											</div>
 										</div>
 										<div class="col-4">
-											<button class="btn btn-primary d-block w-100" type="button" ng-click="save()">Save</button>
+											<button class="btn btn-primary d-block w-100" type="button" ng-click="saveConfig()">Save</button>
 										</div>
 										<div class="col-4">
 											<button class="btn btn-primary d-block w-100" ng-click="removeConfig()">Remove config</button>
@@ -253,6 +255,13 @@
 			</div>
 		</div>
 
+		<div class="">
+			<span class="fa fa-circle text-success"  title="Some configurations have run ok"></span>
+			<span class="fa fa-circle text-danger" title="Some configurations have failed"></span>
+			<span class="fa fa-circle text-warning" title="Some configurations did not run at all"></span>
+			<span class="fa fa-circle text-secondary" title="There are no configurations in the list"></span>
+		</div>
+
 	</div>
 
 	<div ng-show="loading" class="load">
@@ -262,6 +271,7 @@
 	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 	<script src="/angular/angular.js"></script>
 	<script src="/scripts/script.js"></script>
+	<script src="/scripts/services.js"></script>
 	<script src="/scripts/controllers.js"></script>
 </body>
 

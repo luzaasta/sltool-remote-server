@@ -1,4 +1,5 @@
 var builderApp = angular.module('configApp', [
+	'services',
 	'controllers'
 ]);
 
