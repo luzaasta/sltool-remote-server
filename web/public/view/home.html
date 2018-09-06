@@ -20,15 +20,11 @@
 
 					<!-- new env -->
 					<div class="col-3">
-						<div class="">
-							<input name="newEnv" class="form-control" type="text" ng-model="newEnvName" placeholder="Env name" />
-						</div>
+						<input name="newEnv" class="form-control" type="text" ng-model="newEnvName" placeholder="Env name" />
 					</div>
 
 					<div class="col-3">
-						<div class="">
-							<button class="btn btn-primary d-block w-100" ng-click="newEnv()" >Create new environment</button>
-						</div>
+						<button class="btn btn-primary d-block w-100" ng-click="newEnv()" >Create new environment</button>
 					</div>
 
 					<div class="col-6 border-left" ng-show="envConfigs.length &gt; 0">
@@ -41,36 +37,48 @@
 
 		<!-- MAIN PANEL -->
 		<div ng-show="envConfigs.length &gt; 0" class="card">
+
+			<!-- HEADER -->
 			<div class="card-header">
+
+				<!-- TABS -->
 				<ul class="nav nav-tabs card-header-tabs nav-fill">
 					<li class="nav-item" ng-repeat="env in envConfigs track by $index">
-						<a href="#" class="nav-link" ng-class="{'active': currentEnv.envName == env.envName}" ng-click="changeEnv($index)">
-							<span class="fa fa-circle fa-xs text-success" ng-show="getEnvConfigState(env.envName, 'someOk')"></span>
-							<span class="fa fa-circle fa-xs text-danger" ng-show="getEnvConfigState(env.envName, 'someFailed')"></span>
-							<span class="fa fa-circle fa-xs text-warning" ng-show="getEnvConfigState(env.envName, 'someNotRun')"></span>
-							<span class="fa fa-circle fa-xs text-secondary" ng-show="getEnvConfigState(env.envName, 'noChildren')"></span>
+						<a href="#" class="nav-link" ng-class="{'active': currentEnvIndex == $index}" ng-click="changeEnv($index)">
+							<span class="fa fa-circle fa-xs text-success" ng-show="getEnvConfigState($index, 'someOk')"></span>
+							<span class="fa fa-circle fa-xs text-danger" ng-show="getEnvConfigState($index, 'someFailed')"></span>
+							<span class="fa fa-circle fa-xs text-warning" ng-show="getEnvConfigState($index, 'someNotRun')"></span>
+							<span class="fa fa-circle fa-xs text-secondary" ng-show="getEnvConfigState($index, 'noChildren')"></span>
 							<span>{{env.envName}}</span>
 						</a>
 					</li>
 				</ul>
 			</div>
 
+			<!-- BODY -->
 			<div class="card-body row">
 
+				<!-- ENV ACTIONS -->
 				<div class="col-12 pb-2 mb-2 border-bottom">
+
 					<div class="row">
 
-						<div class="col-2">
-							<button ng-show="currentEnv.envName != envConfigs[0].envName" class="btn btn-primary" ng-click="moveCurrentEnv(false)">
+						<div class="col-1">
+							<button ng-show="currentEnvIndex &gt; 0" class="btn btn-primary" ng-click="moveCurrentEnv(false)">
 								<span class="fa fa-arrow-left"></span>
 							</button>
 						</div>
-						<div class="col-8 text-center">
-							<button class="btn btn-primary" ng-click="runAllInEnv()" >Run all configs for current env</button>
-							<button class="btn btn-primary" ng-click="removeEnv()" >Remove current env</button>
+						<div class="col-10 text-center">
+							<div class="form-inline">
+								<input  class="form-control d-inline mr-3" name="renameEnv" type="text" ng-model="envNameModel" />
+								<button class="btn btn-primary mr-5" ng-click="renameEnv()" >Rename</button>
+								<button class="btn btn-primary mr-3" ng-click="runAllInEnv()" >Run all configs for current env</button>
+								<button class="btn btn-primary" ng-click="removeEnv()" >Remove current env</button>
+
+							</div>
 						</div>
-						<div class="col-2 text-right">
-							<button ng-show="currentEnv.envName != envConfigs[envConfigs.length-1].envName" class="btn btn-primary" ng-click="moveCurrentEnv(true)">
+						<div class="col-1 text-right">
+							<button ng-show="currentEnvIndex &lt; envConfigs.length - 1" class="btn btn-primary" ng-click="moveCurrentEnv(true)">
 								<span class="fa fa-arrow-right"></span>
 							</button>
 						</div>
@@ -252,6 +260,7 @@
 
 					</div>
 				</div>
+
 			</div>
 		</div>
 

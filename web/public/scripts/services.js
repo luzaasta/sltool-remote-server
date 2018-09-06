@@ -18,19 +18,19 @@ factory('restService', ['$http', function($http) {
 		return $http.post('/env', newEnv);
 	};
 
-	ret.updateEnv = function(env) {
-		return $http.put(`/env/${env.envName}`, env);
+	ret.updateEnv = function(id, data) {
+		return $http.patch(`/env/${id}`, data);
 	};
 
-	ret.reorderCurrentEnv = function(envName, newIndex) {
+	ret.reorderEnv = function(id, newIndex) {
 		return $http.post('/func/reorderEnv', {
-			envName: envName,
+			id: id,
 			newIndex: newIndex
 		});
 	};
 
-	ret.removeCurrentEnv = function(envName) {
-		return $http.delete(`/env/${envName}`);
+	ret.removeEnv = function(id) {
+		return $http.delete(`/env/${id}`);
 	};
 
 	/** CONF */

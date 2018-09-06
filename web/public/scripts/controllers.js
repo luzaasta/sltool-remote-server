@@ -21,6 +21,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	$scope.envConfigs = [];
 	$scope.currentEnv = null;
+	$scope.currentEnvIndex = -1;
+	$scope.envNameModel = "";
 
 	$scope.kaukoOn = true;
 
@@ -45,35 +47,35 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	function initConfigStates() {
 		configStates = {};
-		var envName = "";
+		var index = 0;
 		for (var env of $scope.envConfigs) {
-			envName = env.envName;
-			configStates[envName] = {};
-			configStates[envName].someFailed = false;
-			configStates[envName].someOk = false;
+			configStates[index] = {};
+			configStates[index].someFailed = false;
+			configStates[index].someOk = false;
 
 			for (var type of $scope.configTypes) {
-				configStates[envName][type] = {};
-				configStates[envName][type].someFailed = false;
-				configStates[envName][type].someOk = false;
+				configStates[index][type] = {};
+				configStates[index][type].someFailed = false;
+				configStates[index][type].someOk = false;
 
-				configStates[envName][type].configStates = [];
+				configStates[index][type].configStates = [];
 
 				// handle no children and some not run
 				if (env[type].length == 0) {
-					configStates[envName].noChildren = true;
-					configStates[envName][type].noChildren = true;
-					configStates[envName][type].someNotRun = false;
+					configStates[index].noChildren = true;
+					configStates[index][type].noChildren = true;
+					configStates[index][type].someNotRun = false;
 				} else {
-					configStates[envName].someNotRun = true;
-					configStates[envName][type].noChildren = false;
-					configStates[envName][type].someNotRun = true;
+					configStates[index].someNotRun = true;
+					configStates[index][type].noChildren = false;
+					configStates[index][type].someNotRun = true;
 				}
 
 				for (var i = 0; i < env[type].length; i++) {
-					configStates[envName][type].configStates.push(singleConfigStates.NOT_RUN);
+					configStates[index][type].configStates.push(singleConfigStates.NOT_RUN);
 				}
 			}
+			index++;
 		}
 
 		console.log(configStates);
@@ -83,7 +85,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	function refreshConfigStates() {
 		console.log(configStates);
 		var failedE = okE = notRunE = noChildrenE = failedT = okT = notRunT = 0;
-		for (var envName in configStates) {
+		for (var index in configStates) {
 
 			failedE = okE = notRunE = noChildrenE = 0;
 
@@ -91,16 +93,16 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 				failedT = okT = notRunT = 0;
 
-				if (configStates[envName][type].configStates.length == 0) {
-					configStates[envName][type].noChildren = true;
+				if (configStates[index][type].configStates.length == 0) {
+					configStates[index][type].noChildren = true;
 					noChildrenE++;
 				} else {
-					configStates[envName][type].noChildren = false;
+					configStates[index][type].noChildren = false;
 				}
 
-				for (var i = 0; i < configStates[envName][type].configStates.length; i++) {
+				for (var i = 0; i < configStates[index][type].configStates.length; i++) {
 
-					var state = configStates[envName][type].configStates[i];
+					var state = configStates[index][type].configStates[i];
 
 					if (state === singleConfigStates.NOT_RUN) {
 						notRunE++;
@@ -113,39 +115,39 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 						okT++;
 					}
 				}
-				configStates[envName][type].someFailed = failedT > 0;
-				configStates[envName][type].someOk = okT > 0;
-				configStates[envName][type].someNotRun = notRunT > 0;
+				configStates[index][type].someFailed = failedT > 0;
+				configStates[index][type].someOk = okT > 0;
+				configStates[index][type].someNotRun = notRunT > 0;
 
 			}
-			configStates[envName].noChildren = noChildrenE > 0;
-			configStates[envName].someFailed = failedE > 0;
-			configStates[envName].someOk = okE > 0;
-			configStates[envName].someNotRun = notRunE > 0;
+			configStates[index].noChildren = noChildrenE > 0;
+			configStates[index].someFailed = failedE > 0;
+			configStates[index].someOk = okE > 0;
+			configStates[index].someNotRun = notRunE > 0;
 		}
 
 		console.log(configStates);
 	}
 
-	$scope.getEnvConfigState = function(envName, prop) {
+	$scope.getEnvConfigState = function(index, prop) {
 		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
-		return configStates[envName][prop];
+		return configStates[index][prop];
 	};
 
 	$scope.getConfigListState = function(type, prop) {
 		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentEnv.envName][type][prop];
+		return configStates[$scope.currentEnvIndex][type][prop];
 	};
 
 	$scope.getConfigState = function(i) {
 		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentEnv.envName][$scope.currentConfigType].configStates[i];
+		return configStates[$scope.currentEnvIndex][$scope.currentConfigType].configStates[i];
 	};
 
 
@@ -326,14 +328,16 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					return;
 				}
 
+				var ie = 0;
 				for (var env of $scope.envConfigs) {
 					for (var type of $scope.configTypes) {
-						for (var i in data[env.envName][type]) {
-							var failed = data[env.envName][type][i].failed;
+						for (var i in data[ie][type]) {
+							var failed = data[ie][type][i].failed;
 							var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-							configStates[env.envName][type].configStates[i] = state;
+							configStates[ie][type].configStates[i] = state;
 						}
 					}
+					ie++;
 				}
 
 				refreshConfigStates();
@@ -350,6 +354,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 			return;
 		}
 		$scope.currentEnv = $scope.envConfigs[index];
+		$scope.currentEnvIndex = index;
+		$scope.envNameModel = $scope.currentEnv.envName;
 		$scope.selectConfig(0);
 	};
 
@@ -360,24 +366,25 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 		restService.createNewEnv(newEnv).then(
 			function(res) {
-				var l = $scope.envConfigs.push(res.data.newConfig) - 1;
+				var l = $scope.envConfigs.push(res.data.env) - 1;
 				$scope.changeEnv(l);
 
 				var envName = $scope.currentEnv.envName;
-				// create conf state
-				configStates[envName] = {};
-				configStates[envName].someFailed = false;
-				configStates[envName].someOk = false;
-				configStates[envName].someNotRun = false;
-				configStates[envName].noChildren = true;
-				for (var type of $scope.configTypes) {
-					configStates[envName][type] = {};
-					configStates[envName][type].someFailed = false;
-					configStates[envName][type].someOk = false;
-					configStates[envName][type].someNotRun = false;
-					configStates[envName][type].noChildren = true;
 
-					configStates[envName][type].configStates = [];
+				// create conf state
+				configStates[l] = {};
+				configStates[l].someFailed = false;
+				configStates[l].someOk = false;
+				configStates[l].someNotRun = false;
+				configStates[l].noChildren = true;
+				for (var type of $scope.configTypes) {
+					configStates[l][type] = {};
+					configStates[l][type].someFailed = false;
+					configStates[l][type].someOk = false;
+					configStates[l][type].someNotRun = false;
+					configStates[l][type].noChildren = true;
+
+					configStates[l][type].configStates = [];
 				}
 
 				refreshConfigStates();
@@ -389,20 +396,34 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 				}, 3000);
 			},
 			function() {});
-
 	};
 
-	$scope.removeEnv = function() {
+	$scope.renameEnv = function(index) {
+		var i = index ? index : $scope.currentEnvIndex;
+		var data = {
+			envName: $scope.envNameModel
+		};
+		restService.updateEnv(i, data).then(
+			function(res) {
+				$scope.envConfigs[i].envName = res.data.env.envName;
+			},
+			function() {}
+		);
+	};
+
+	$scope.removeEnv = function(index) {
 		var conf = $window.confirm("Are you sure you want to delete this environment? " + $scope.currentEnv.envName);
 		if (!conf) {
 			return;
 		}
-		restService.removeCurrentEnv($scope.currentEnv.envName).then(
+
+		i = index ? index : $scope.currentEnvIndex;
+		restService.removeEnv(i).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
-				var i = $scope.envConfigs.indexOfByKeyAndValue('envName', $scope.currentEnv.envName);
+
 				$scope.envConfigs.splice(i, 1);
 				$scope.changeEnv(i === 0 ? 0 : i - 1);
 			},
@@ -410,19 +431,22 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	};
 
 	$scope.moveCurrentEnv = function(dir) {
-		var srcIndex = $scope.envConfigs.indexOfByKeyAndValue('envName', $scope.currentEnv.envName);
-		var dstIndex = srcIndex + (dir ? 1 : -1);
+		var i = $scope.currentEnvIndex;
+		var dstIndex = i + (dir ? 1 : -1);
 
-		restService.reorderCurrentEnv($scope.currentEnv.envName, dstIndex).then(function(res) {
+		restService.reorderEnv(i, dstIndex).then(
+			function(res) {
 				if (res.status != 200) {
 					return;
 				}
-				var it = $scope.envConfigs.splice(srcIndex, 1)[0];
+				var it = $scope.envConfigs.splice(i, 1)[0];
 				$scope.envConfigs.splice(dstIndex, 0, it);
+				$scope.changeEnv(dstIndex);
 			},
 			function() {});
 	};
 
+	/** OTHER */
 
 	$scope.getDate = function(conf) {
 		if (!conf || !conf.lastRun) {

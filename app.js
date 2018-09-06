@@ -4,47 +4,56 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 
-var models = require('./data/model');
-var Model = models.Model;
-var Config = models.Config;
-var EnvConfig = models.EnvConfig;
+var LocalFileConnector = require('./scripts/services/localFileConnector');
+var RepositoryFactory = require('./scripts/services/repositoryFactory');
+var EnvironmentRepository = require('./scripts/repositories/environmentRepository');
+var entities = require('./scripts/entity/entities');
+var Environment = require('./scripts/entity/environment');
 
-var funcMap = {};
+/*var funcMap = {};
 for (var type in EnvConfig.CONFIG_TYPE_TO_CONSTRUCTOR) {
 	funcMap[type] = require(`./connector_scripts/${type.toLowerCase()}`);
+}*/
+
+var connectionType = process.argv[2];
+var autoDbInit = process.argv[3] == 'true';
+var localFilePath;
+
+function initDb(autoDbInit) {
+	var conn = LocalFileConnector.getInstance(localFilePath);
+	var db = {};
+	try {
+		db = conn.load();
+	} catch (e) {
+		console.log("Creating DB!");
+		conn.save(db);
+	}
+
+	if (autoDbInit) {
+		for (className of entities) {
+			if (!Array.isArray(db[className.toUpperCase()])) {
+				db[className.toUpperCase()] = [];
+			}
+		}
+
+		conn.save(db);
+	}
 }
 
-Array.prototype.indexOfByKeyAndValue = function(key, value) {
-	var i = -1;
-	this.some(function(ele, index) {
-		if (ele[key] == value) {
-			i = index;
-			return;
-		}
-	});
-	return i;
-};
-
-Array.prototype.getByKeyAndValue = function(key, value) {
-	var obj = null;
-	this.some(function(ele, index) {
-		if (ele[key] == value) {
-			obj = ele;
-			return;
-		}
-	});
-	return obj;
-};
-
-var isError = false;
-var errorMessage = "";
-var model = new Model("./data/config.json");
-try {
-	model.load();
-} catch (e) {
-	isError = true;
-	console.error(e);
+if (connectionType = "local-file") {
+	localFilePath = './data/data.json';
+	initDb(autoDbInit);
 }
+
+
+var repoFactory = RepositoryFactory.getInstance({
+	type: 'local-file',
+	filePath: localFilePath
+});
+
+var envRepo = repoFactory.getRepoInstance(EnvironmentRepository);
+
+
 
 // static serving
 // app.use(express.static(__dirname + '\\web\\public\\view'));
@@ -91,12 +100,6 @@ app.get('/env', function(req, res) {
 //create
 app.post('/env', function(req, res) {
 	var envName = req.body.envName;
-	if (model.envConfigs.getByKeyAndValue('envName', envName) !== null) {
-		res.status(400).json({
-			message: 'Env already exists!'
-		});
-		return;
-	}
 
 	var env = new models.EnvConfig({
 		envName: envName
@@ -104,15 +107,15 @@ app.post('/env', function(req, res) {
 	model.envConfigs.push(env);
 	model.save();
 	res.json({
-		newConfig: env,
+		env: env,
 		message: 'Env created!'
 	});
 });
 
-// get one
+// get one (not used)
 app.get('/env/:id', function(req, res) {
-	var envName = req.params.id;
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
+	var id = req.params.id;
+	var env = model.envConfigs[id];
 	if (env === null) {
 		res.status(404).json({
 			message: 'Unknown env!'
@@ -124,22 +127,40 @@ app.get('/env/:id', function(req, res) {
 });
 
 // update
-app.patch('/env/:id', function(req, res) {});
+app.patch('/env/:id', function(req, res) {
+	var id = req.params.id;
+
+	var env = model.envConfigs[id];
+	if (!env) {
+		res.status(400).json({
+			message: 'Env does not exist!'
+		});
+		return;
+	}
+
+	// only name is updated now
+	env.envName = req.body.envName;
+
+	model.save();
+	res.json({
+		env: env,
+		message: "Env updated"
+	});
+});
 
 // replace
 app.put('/env/:id', function(req, res) {
 	//validate req body
 
 	var msg = "";
-	var envName = req.params.id;
+	var id = req.params.id;
 	var env = new models.EnvConfig(req.body);
 
-	var i = model.envConfigs.indexOfByKeyAndValue('envName', envName);
-	if (i < 0) {
+	if (!model.envConfigs[id]) {
 		model.envConfigs.push(env);
 		msg = "New env created";
 	} else {
-		model.envConfigs[i] = env;
+		model.envConfigs[id] = env;
 		msg = "Env replaced";
 	}
 
@@ -151,16 +172,16 @@ app.put('/env/:id', function(req, res) {
 });
 
 app.delete('/env/:id', function(req, res) {
-	var envName = req.params.id;
-	var i = model.envConfigs.indexOfByKeyAndValue('envName', envName);
-	if (i < 0) {
+	var id = req.params.id;
+
+	if (!model.envConfigs[id]) {
 		res.status(404).json({
 			message: 'Unknown env!'
 		});
 		return;
 	}
 
-	model.envConfigs.splice(i, 1);
+	model.envConfigs.splice(id, 1);
 	model.save();
 	res.json({
 		message: 'Env deleted!'
@@ -226,7 +247,7 @@ app.put('/config/:env/:cfg/:id', function(req, res) {
 
 	var data = req.body;
 
-	for(var prop in data) {
+	for (var prop in data) {
 		env[configType][index][prop] = data[prop];
 	}
 
@@ -240,17 +261,16 @@ app.put('/config/:env/:cfg/:id', function(req, res) {
 /** FUNCTIONS */
 
 app.post('/func/reorderEnv', function(req, res) {
-	var envName = req.body.envName;
+	var id = req.body.id;
 	var newIndex = req.body.newIndex;
-	var i = model.envConfigs.indexOfByKeyAndValue('envName', envName);
-	if (i < 0) {
+	if (!model.envConfigs[id]) {
 		res.status(404).json({
 			message: 'Unknown env!'
 		});
 		return;
 	}
 
-	var it = model.envConfigs.splice(i, 1)[0];
+	var it = model.envConfigs.splice(id, 1)[0];
 	model.envConfigs.splice(newIndex, 0, it);
 	model.save();
 	res.json({
