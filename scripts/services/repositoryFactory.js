@@ -5,6 +5,10 @@ var LocalFileRepository = require('../services/localFileRepository');
 var instances = {};
 var repoInstances = {};
 
+/**
+ * TODO: make configs of one interface
+ * @param {[type]} config [description]
+ */
 function RepositoryFactory(config) {
 	console.log("constructing RepositoryFactory!");
 	this.type = config.type;
@@ -12,7 +16,7 @@ function RepositoryFactory(config) {
 
 	if (this.type == 'local-file') {
 		this.conn = LocalFileConnector.getInstance(config.filePath);
-	}
+	} else if (this.type == 'mongo') {}
 }
 
 RepositoryFactory.prototype.getRepoInstance = function(repoConstructor) {
@@ -32,7 +36,12 @@ RepositoryFactory.prototype.getRepoInstance = function(repoConstructor) {
 };
 
 RepositoryFactory.getInstance = function(config) {
-	var id = `${config.type}_${config.filePath}`;
+	var id;
+
+	if (config.type == 'local-file') {
+		id = `${config.type}_${config.filePath}`;
+	} else if (config.type == 'mongo') {}
+
 	if (instances[id] === undefined) {
 		instances[id] = new RepositoryFactory(config);
 	}

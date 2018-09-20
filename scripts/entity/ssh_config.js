@@ -1,14 +1,10 @@
 var Config = require('./config');
 
-var Ssh_config = function(config, name) {
-	Config.call(this, config, name);
+var Ssh_config = function(obj) {
+	Config.call(this, obj);
 
-	if (!config) {
-		this.connectionConf = new SshConnectionConf();
-		return;
-	}
-	this.connectionConf = new SshConnectionConf(config.connectionConf);
-	this.pathTest = config.pathTest;
+	this.connection_conf = obj && obj.connection_conf ? new SshConnectionConf(obj.connection_conf) : null;
+	this.path_test = obj && obj.path_test ? obj.path_test : null;
 };
 
 Ssh_config.prototype = Object.create(Config.prototype);
@@ -17,18 +13,17 @@ Ssh_config.prototype.clone = function() {
 	return new Ssh_config(this);
 };
 
-var SshConnectionConf = function(config) {
-	if (!config) {
-		return;
-	}
-	this.host = config.host;
-	this.username = config.username;
-	this.password = config.password;
-	this.port = config.port;
+var SshConnectionConf = function(obj) {
+	this.host = obj && obj.host ? obj.host : null;
+	this.username = obj && obj.username ? obj.username : null;
+	this.password = obj && obj.password ? obj.password : null;
+	this.port = obj && obj.port ? obj.port : null;
 };
 
 SshConnectionConf.prototype.SshConnectionConf = function() {
 	return new SshConnectionConf(this);
 };
+
+Ssh_config.TABLE_NAME = "SSH_CONFIG";
 
 module.exports = Ssh_config;

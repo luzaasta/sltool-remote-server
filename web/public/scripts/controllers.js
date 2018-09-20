@@ -1,6 +1,15 @@
 angular.module('controllers', []).
 
-controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$window', '$q', 'restService', function($rootScope, $scope, $http, $timeout, $window, $q, restService) {
+controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$window', '$q', 'restService', 'modelService', function($rootScope, $scope, $http, $timeout, $window, $q, restService, modelService) {
+
+	var CONFIG_TYPES = {
+		DB: {
+			ENTITY_CONSTRUCTOR: modelService.Db_config
+		},
+		SSH: {
+			ENTITY_CONSTRUCTOR: modelService.Ssh_config
+		}
+	};
 
 	var singleConfigStates = {
 		FAILED: 'text-danger',
@@ -10,35 +19,61 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	var configStates = null;
 
-	$scope.newEnvName = "";
+	$scope.newServerName = "";
 
 	$scope.dbTypes = ["PostgreSQL", "DB2"];
-	$scope.configTypes = ["DB", "SSH"];
+	$scope.configTypes = ["DB", "SSH"]; // take from server?
 
 	$scope.currentConfigType = "DB";
 	$scope.currentConfig = null;
 	$scope.currentConfigIndex = -1;
 
-	$scope.envConfigs = [];
-	$scope.currentEnv = null;
-	$scope.currentEnvIndex = -1;
-	$scope.envNameModel = "";
+	$scope.servers = [];
+	$scope.currentServer = null;
+	$scope.currentServerIndex = -1;
+	$scope.serverNameModel = "";
 
 	$scope.kaukoOn = true;
 
 	/** INIT PARTS */
 
-	restService.getEnvList().then(
+	restService.getAllData().then(
 		function(res) {
-			init(res.data);
+			init(parseData(res.data));
 		},
 		function() {
 			console.log("Error occured when getting configs!");
 		}
 	);
 
+	function parseData(data) {
+		for (var server of data) {
+			server.environment = new modelService.Environment(server.environment);
+			for (var configType in server.configs) {
+				for (var i = 0; i < server.configs[configType].length; i++) {
+					server.configs[configType][i] = new CONFIG_TYPES[configType].ENTITY_CONSTRUCTOR(server.configs[configType][i]);
+				}
+			}
+		}
+
+		return data;
+	}
+
+	function orderSort1(a, b) {
+		return a.environment.order < b.environment.order ? -1 : 1;
+	}
+
+	function orderSort2(a, b) {
+		return a.order < b.order ? -1 : 1;
+	}
+
 	function init(data) {
-		$scope.envConfigs = data;
+		$scope.servers = data.sort(orderSort1);
+		for (var server of $scope.servers) {
+			for (var configType of $scope.configTypes) {
+				server.configs[configType].sort(orderSort2);
+			}
+		}
 		initConfigStates();
 		$scope.changeEnv(0);
 	}
@@ -48,7 +83,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	function initConfigStates() {
 		configStates = {};
 		var index = 0;
-		for (var env of $scope.envConfigs) {
+		for (var server of $scope.servers) {
 			configStates[index] = {};
 			configStates[index].someFailed = false;
 			configStates[index].someOk = false;
@@ -61,7 +96,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 				configStates[index][type].configStates = [];
 
 				// handle no children and some not run
-				if (env[type].length == 0) {
+				if (server.configs[type].length == 0) {
 					configStates[index].noChildren = true;
 					configStates[index][type].noChildren = true;
 					configStates[index][type].someNotRun = false;
@@ -71,14 +106,14 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					configStates[index][type].someNotRun = true;
 				}
 
-				for (var i = 0; i < env[type].length; i++) {
+				for (var i = 0; i < server.configs[type].length; i++) {
 					configStates[index][type].configStates.push(singleConfigStates.NOT_RUN);
 				}
 			}
 			index++;
 		}
 
-		console.log(configStates);
+		// console.log(configStates);
 	}
 
 	// no children in type is the same as configstates.length == 0
@@ -140,14 +175,14 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentEnvIndex][type][prop];
+		return configStates[$scope.currentServerIndex][type][prop];
 	};
 
 	$scope.getConfigState = function(i) {
 		if (!configStates || angular.isObjectEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentEnvIndex][$scope.currentConfigType].configStates[i];
+		return configStates[$scope.currentServerIndex][$scope.currentConfigType].configStates[i];
 	};
 
 
@@ -164,7 +199,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	$scope.saveConfig = function(index) {
 		var i = index ? index : $scope.currentConfigIndex;
 
-		restService.updateConfig($scope.currentEnv, $scope.currentConfigType, i).then(
+		restService.updateConfig($scope.currentServer, $scope.currentConfigType, i).then(
 			function() {
 
 			},
@@ -176,16 +211,16 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	$scope.addConfig = function(index) {
 		var i = index ? index : $scope.currentConfigIndex;
 
-		restService.addConfig($scope.currentEnv, $scope.currentConfigType).then(
+		restService.addConfig($scope.currentServer, $scope.currentConfigType).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
 
 				var config = res.data.config;
-				var l = $scope.currentEnv[$scope.currentConfigType].push(config) - 1;
+				var l = $scope.currentServer.configs[$scope.currentConfigType].push(config) - 1;
 				$scope.selectConfig(l);
-				configStates[$scope.currentEnv.envName][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
+				configStates[$scope.currentServer.name][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
 				refreshConfigStates();
 			},
 			function() {});
@@ -194,16 +229,16 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	$scope.removeConfig = function(index) {
 		var i = index ? index : $scope.currentConfigIndex;
 
-		restService.removeConfig($scope.currentEnv, $scope.currentConfigType, i).then(
+		restService.removeConfig($scope.currentServer, $scope.currentConfigType, i).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
 
-				it = $scope.currentEnv[$scope.currentConfigType].splice(i, 1)[0];
-				var ind = i > 0 ? i - 1 : ($scope.currentEnv[$scope.currentConfigType].length > 0 ? 0 : -1);
+				it = $scope.currentServer.configs[$scope.currentConfigType].splice(i, 1)[0];
+				var ind = i > 0 ? i - 1 : ($scope.currentServer[$scope.currentConfigType].length > 0 ? 0 : -1);
 				$scope.selectConfig(ind);
-				configStates[$scope.currentEnv.envName][$scope.currentConfigType].configStates.splice(i, 1);
+				configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates.splice(i, 1);
 				refreshConfigStates();
 			},
 			function() {});
@@ -212,15 +247,15 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	$scope.duplicateConfig = function(index) {
 		var i = index ? index : $scope.currentConfigIndex;
 
-		restService.duplicateConfig($scope.currentEnv, $scope.currentConfigType, i).then(
+		restService.duplicateConfig($scope.currentServer, $scope.currentConfigType, i).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
 				var data = res.data;
-				var l = $scope.currentEnv[$scope.currentConfigType].push(data) - 1;
+				var l = $scope.currentSever.configs[$scope.currentConfigType].push(data) - 1;
 				$scope.selectConfig(l);
-				configStates[$scope.currentEnv.envName][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
+				configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
 				refreshConfigStates();
 			},
 			function() {}
@@ -228,12 +263,12 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	};
 
 	$scope.selectConfig = function(index) {
-		if (index < 0 || index > $scope.currentEnv[$scope.currentConfigType].length - 1) {
+		if (index < 0 || index > $scope.currentServer.configs[$scope.currentConfigType].length - 1) {
 			$scope.currentConfig = null;
 			$scope.currentConfigIndex = -1;
 			return;
 		}
-		$scope.currentConfig = $scope.currentEnv[$scope.currentConfigType][index];
+		$scope.currentConfig = $scope.currentServer.configs[$scope.currentConfigType][index];
 		$scope.currentConfigIndex = index;
 	};
 
@@ -242,18 +277,18 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	$scope.runSingleInEnv = function(index) {
 		var i = index ? index : $scope.currentConfigIndex;
 
-		restService.runSingleConfig($scope.currentEnv, $scope.currentConfigType, i).then(
+		restService.runSingleConfig($scope.currentServer, $scope.currentConfigType, i).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
 
 				var data = res.data;
-				$scope.currentEnv[$scope.currentConfigType][i].lastRun = data[$scope.currentEnv.envName][$scope.currentConfigType][i].lastRun;
+				$scope.currentServer.configs[$scope.currentConfigType][i].lastRun = data[$scope.currentServer.envName][$scope.currentConfigType][i].lastRun;
 
-				var failed = data[$scope.currentEnv.envName][$scope.currentConfigType][i].failed;
+				var failed = data[$scope.currentServer.envName][$scope.currentConfigType][i].failed;
 				var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-				configStates[$scope.currentEnv.envName][$scope.currentConfigType].configStates[i] = state;
+				configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates[i] = state;
 				refreshConfigStates();
 			},
 			function() {
@@ -262,7 +297,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	};
 
 	$scope.runAllOfTypeInEnv = function() {
-		restService.runAllInEnvForConfigType($scope.currentEnv, $scope.currentConfigType).then(
+		restService.runAllInEnvForConfigType($scope.currentServer, $scope.currentConfigType).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
@@ -274,10 +309,10 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					return;
 				}
 
-				for (var i in data[$scope.currentEnv.envName][$scope.currentConfigType]) {
-					var failed = data[$scope.currentEnv.envName][$scope.currentConfigType][i].failed;
+				for (var i in data[$scope.currentServer.envName][$scope.currentConfigType]) {
+					var failed = data[$scope.currentServer.envName][$scope.currentConfigType][i].failed;
 					var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-					configStates[$scope.currentEnv.envName][$scope.currentConfigType].configStates[i] = state;
+					configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates[i] = state;
 				}
 
 				refreshConfigStates();
@@ -288,7 +323,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	};
 
 	$scope.runAllInEnv = function() {
-		restService.runAllInEnv($scope.currentEnv).then(
+		restService.runAllInEnv($scope.currentServer).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
@@ -301,10 +336,10 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 				}
 
 				for (var type of $scope.configTypes) {
-					for (var i in data[$scope.currentEnv.envName][type]) {
-						var failed = data[$scope.currentEnv.envName][type][i].failed;
+					for (var i in data[$scope.currentServer.envName][type]) {
+						var failed = data[$scope.currentServer.envName][type][i].failed;
 						var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-						configStates[$scope.currentEnv.envName][type].configStates[i] = state;
+						configStates[$scope.currentServer.envName][type].configStates[i] = state;
 					}
 				}
 
@@ -329,7 +364,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 				}
 
 				var ie = 0;
-				for (var env of $scope.envConfigs) {
+				for (var env of $scope.servers) {
 					for (var type of $scope.configTypes) {
 						for (var i in data[ie][type]) {
 							var failed = data[ie][type][i].failed;
@@ -350,26 +385,26 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	/** ENVS */
 
 	$scope.changeEnv = function(index) {
-		if (index > $scope.envConfigs.length - 1 || index < 0) {
+		if (index > $scope.servers.length - 1 || index < 0) {
 			return;
 		}
-		$scope.currentEnv = $scope.envConfigs[index];
-		$scope.currentEnvIndex = index;
-		$scope.envNameModel = $scope.currentEnv.envName;
+		$scope.currentServer = $scope.servers[index];
+		$scope.currentServerIndex = index;
+		$scope.serverNameModel = $scope.currentServer.environment.name;
 		$scope.selectConfig(0);
 	};
 
 	$scope.newEnv = function() {
 		var newEnv = {
-			envName: $scope.newEnvName
+			name: $scope.newServerName
 		};
 
 		restService.createNewEnv(newEnv).then(
 			function(res) {
-				var l = $scope.envConfigs.push(res.data.env) - 1;
+				var l = $scope.servers.push(res.data.data) - 1;
 				$scope.changeEnv(l);
 
-				var envName = $scope.currentEnv.envName;
+				var envName = $scope.currentServer.name;
 
 				// create conf state
 				configStates[l] = {};
@@ -389,49 +424,47 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 				refreshConfigStates();
 
-				$scope.newEnvName = "";
-				$scope.newEnvMessage = res.data.message;
+				$scope.newServerName = "";
+				/*$scope.newEnvMessage = res.data.message;
 				$timeout(function() {
 					$scope.newEnvMessage = "";
-				}, 3000);
+				}, 3000);*/
 			},
 			function() {});
 	};
 
 	$scope.renameEnv = function(index) {
-		var i = index ? index : $scope.currentEnvIndex;
-		var data = {
-			envName: $scope.envNameModel
-		};
-		restService.updateEnv(i, data).then(
+		var data = $scope.currentServer.environment.clone();
+		data.name = $scope.serverNameModel;
+		restService.updateEnv(data.id, data).then(
 			function(res) {
-				$scope.envConfigs[i].envName = res.data.env.envName;
+				$scope.currentServer.environment = res.data;
 			},
 			function() {}
 		);
 	};
 
 	$scope.removeEnv = function(index) {
-		var conf = $window.confirm("Are you sure you want to delete this environment? " + $scope.currentEnv.envName);
+		var conf = $window.confirm("Are you sure you want to delete this environment? All configs will be removed!" + $scope.currentServer.environment.name);
 		if (!conf) {
 			return;
 		}
 
-		i = index ? index : $scope.currentEnvIndex;
-		restService.removeEnv(i).then(
+		i = index ? index : $scope.currentServerIndex;
+		restService.removeEnv($scope.currentServer.environment.id).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
 
-				$scope.envConfigs.splice(i, 1);
+				$scope.servers.splice(i, 1);
 				$scope.changeEnv(i === 0 ? 0 : i - 1);
 			},
 			function() {});
 	};
 
 	$scope.moveCurrentEnv = function(dir) {
-		var i = $scope.currentEnvIndex;
+		var i = $scope.currentServerIndex;
 		var dstIndex = i + (dir ? 1 : -1);
 
 		restService.reorderEnv(i, dstIndex).then(
@@ -439,8 +472,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 				if (res.status != 200) {
 					return;
 				}
-				var it = $scope.envConfigs.splice(i, 1)[0];
-				$scope.envConfigs.splice(dstIndex, 0, it);
+				var it = $scope.servers.splice(i, 1)[0];
+				$scope.servers.splice(dstIndex, 0, it);
 				$scope.changeEnv(dstIndex);
 			},
 			function() {});

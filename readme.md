@@ -3,7 +3,7 @@ A web application to make some remote server work easier (should be used only lo
 Installation
 - Clone
 - Run start.bat in Windows
-- run 'node app.js' in Linux
+- Run start.sh in Linux (/bin/sh)
 
 Current capabilites
 - refresh of accounts held in configuration file (no encryption) (now manual only through web)
