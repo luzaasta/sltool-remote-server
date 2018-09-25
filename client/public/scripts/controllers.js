@@ -2,15 +2,6 @@ angular.module('controllers', []).
 
 controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$window', '$q', 'restService', 'modelService', function($rootScope, $scope, $http, $timeout, $window, $q, restService, modelService) {
 
-	var CONFIG_TYPES = {
-		DB: {
-			ENTITY_CONSTRUCTOR: modelService.Db_config
-		},
-		SSH: {
-			ENTITY_CONSTRUCTOR: modelService.Ssh_config
-		}
-	};
-
 	var singleConfigStates = {
 		FAILED: 'text-danger',
 		OK: 'text-success',
@@ -19,66 +10,66 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	var configStates = null;
 
-	$scope.newServerName = "";
-
 	$scope.dbTypes = ["PostgreSQL", "DB2"];
-	$scope.configTypes = ["DB", "SSH"]; // take from server?
+	$scope.configTypes = Object.keys(modelService.Config.TYPES);
+	$scope.currentConfigType = $scope.configTypes[0];
 
-	$scope.currentConfigType = "DB";
-	$scope.currentConfig = null;
-	$scope.currentConfigIndex = -1;
-
+	$scope.serverIdToConfigs = {};
 	$scope.servers = [];
 	$scope.currentServer = null;
-	$scope.currentServerIndex = -1;
-	$scope.serverNameModel = "";
+	$scope.currentConfig = null;
+
+	$scope.currentServerNameModel = "";
+	$scope.newServerNameModel = "";
 
 	$scope.kaukoOn = true;
+
+	/** UTILS */
+	function getCurrentConfigList() {
+		return $scope.serverIdToConfigs[$scope.currentServer.id][$scope.currentConfigType];
+	}
 
 	/** INIT PARTS */
 
 	restService.getAllData().then(
 		function(res) {
-			init(parseData(res.data));
+			init(res.data);
 		},
 		function() {
 			console.log("Error occured when getting configs!");
 		}
 	);
 
-	function parseData(data) {
-		for (var server of data) {
-			server.environment = new modelService.Environment(server.environment);
-			for (var configType in server.configs) {
-				for (var i = 0; i < server.configs[configType].length; i++) {
-					server.configs[configType][i] = new CONFIG_TYPES[configType].ENTITY_CONSTRUCTOR(server.configs[configType][i]);
-				}
-			}
-		}
-
-		return data;
-	}
-
-	function orderSort1(a, b) {
-		return a.environment.order < b.environment.order ? -1 : 1;
-	}
-
-	function orderSort2(a, b) {
-		return a.order < b.order ? -1 : 1;
-	}
-
 	function init(data) {
-		$scope.servers = data.sort(orderSort1);
-		for (var server of $scope.servers) {
-			for (var configType of $scope.configTypes) {
-				server.configs[configType].sort(orderSort2);
-			}
-		}
-		initConfigStates();
+		parseAndSortData(data);
+		// initConfigStates();
 		$scope.changeEnv(0);
 	}
 
-	/** CONF STATES */
+	function parseAndSortData(data) {
+		var env = null;
+		for (var server of data) {
+			env = new modelService.Environment(server.environment);
+			$scope.servers.push(env);
+			$scope.serverIdToConfigs[env.id] = parseAndSortConfigs(server.configs);
+		}
+		$scope.servers.sortLinked('next', 'id');
+	}
+
+	function parseAndSortConfigs(confs) {
+		var configs = {};
+		for (var type of $scope.configTypes) {
+			configs[type] = [];
+			for (var config of confs[type]) {
+				configs[type].push(new modelService.Config.TYPES[type](config));
+			}
+			configs[type].sortLinked('next', 'id');
+		}
+
+		return configs;
+	}
+
+	// CONF STATES -----
 
 	function initConfigStates() {
 		configStates = {};
@@ -165,24 +156,24 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	}
 
 	$scope.getEnvConfigState = function(index, prop) {
-		if (!configStates || angular.isObjectEmpty(configStates)) {
+		if (!configStates || Object.isEmpty(configStates)) {
 			return null;
 		}
 		return configStates[index][prop];
 	};
 
 	$scope.getConfigListState = function(type, prop) {
-		if (!configStates || angular.isObjectEmpty(configStates)) {
+		if (!configStates || Object.isEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentServerIndex][type][prop];
+		return configStates[$scope.currentServer.order - 1][type][prop];
 	};
 
 	$scope.getConfigState = function(i) {
-		if (!configStates || angular.isObjectEmpty(configStates)) {
+		if (!configStates || Object.isEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentServerIndex][$scope.currentConfigType].configStates[i];
+		return configStates[$scope.currentServer.id][$scope.currentConfigType].configStates[i];
 	};
 
 
@@ -195,6 +186,16 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 		$scope.currentConfigType = $scope.configTypes[index];
 		$scope.selectConfig(0);
 	};
+
+	$scope.selectConfig = function(index) {
+		if (index < 0 || index > getCurrentConfigList().length - 1) {
+			$scope.currentConfig = null;
+			return;
+		}
+		$scope.currentConfig = getCurrentConfigList()[index];
+	};
+
+
 
 	$scope.saveConfig = function(index) {
 		var i = index ? index : $scope.currentConfigIndex;
@@ -211,17 +212,17 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	$scope.addConfig = function(index) {
 		var i = index ? index : $scope.currentConfigIndex;
 
-		restService.addConfig($scope.currentServer, $scope.currentConfigType).then(
+		restService.addConfig($scope.currentConfigType, $scope.currentServer.id).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
 
-				var config = res.data.config;
+				var config = new modelService.Config.TYPES[$scope.currentConfigType].ENTITY_CONSTRUCTOR(res.data);
 				var l = $scope.currentServer.configs[$scope.currentConfigType].push(config) - 1;
 				$scope.selectConfig(l);
-				configStates[$scope.currentServer.name][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
-				refreshConfigStates();
+				//configStates[$scope.currentServer.name][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
+				//refreshConfigStates();
 			},
 			function() {});
 	};
@@ -262,15 +263,110 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 		);
 	};
 
-	$scope.selectConfig = function(index) {
-		if (index < 0 || index > $scope.currentServer.configs[$scope.currentConfigType].length - 1) {
-			$scope.currentConfig = null;
-			$scope.currentConfigIndex = -1;
+	/** ENVS */
+
+	$scope.changeEnv = function(index) {
+		if (index > $scope.servers.length - 1 || index < 0) {
 			return;
 		}
-		$scope.currentConfig = $scope.currentServer.configs[$scope.currentConfigType][index];
-		$scope.currentConfigIndex = index;
+		$scope.currentServer = $scope.servers[index];
+		$scope.currentServerNameModel = $scope.currentServer.name;
+		$scope.selectConfig(0);
 	};
+
+
+
+	$scope.newEnv = function() {
+
+		var newEnv = new modelService.Environment();
+		newEnv.name = $scope.newServerNameModel;
+
+		restService.createNewEnv(newEnv).then(
+			function(res) {
+
+				$scope.servers[$scope.servers.length - 1].next = res.data.environment.id;
+
+				parseAndSortData([res.data]);
+
+				$scope.changeEnv($scope.servers.length - 1);
+
+				$scope.newServerNameModel = "";
+			},
+			function() {});
+	};
+
+	$scope.renameEnv = function(index) {
+		var data = $scope.currentServer.clone();
+		data.name = $scope.currentServerNameModel;
+		restService.updateEnv(data.id, data).then(
+			function(res) {
+				copyOwnProps(new modelService.Environment(res.data), $scope.currentServer);
+			},
+			function() {}
+		);
+	};
+
+	$scope.removeEnv = function(index) {
+		var conf = $window.confirm("Are you sure you want to delete this environment? All configs will be removed!" + $scope.currentServer.name);
+		if (!conf) {
+			return;
+		}
+
+		var id = index >= 0 ? $scope.servers[i].id : $scope.currentServer.id;
+
+		restService.removeEnv(id).then(
+			function(res) {
+				if (!res.status.toString().startsWith("20")) {
+					return;
+				}
+
+				var i = index >= 0 || $scope.servers.indexOfByKeyAndValue('id', id);
+				if (i > 0) {
+					var next = $scope.servers[i].next;
+					$scope.servers[i - 1].next = next;
+				}
+				$scope.servers.splice(i, 1);
+				$scope.servers.sortLinked('next', 'id');
+				$scope.changeEnv(i === 0 ? 0 : i - 1);
+			},
+			function() {});
+	};
+
+	$scope.moveCurrentEnv = function(dir) {
+		var oldOrder = $scope.currentServer.order;
+		var newOrder = oldOrder + (dir ? 1 : -1);
+		var data1 = {
+			order: newOrder
+		};
+		var data2 = {
+			order: oldOrder
+		};
+
+		restService.updateEnv($scope.currentServer.id, data1)
+			.then(
+				function(res) {
+					$scope.currentServer.order = res.data.order;
+					return restService.updateEnv($scop.servers[newOrder - 1].id, data2);
+				},
+				function() {}
+			)
+			.then(
+				function(res) {
+					$scop.servers[newOrder - 1].order = res.data.order;
+					$scope.servers.sortLinked('next', 'id');
+					$scope.changeEnv(newOrder - 1);
+				},
+				function() {}
+			);
+	};
+
+	function copyOwnProps(src, dst) {
+		for (prop in src) {
+			if (src.hasOwnProperty(prop)) {
+				dst[prop] = src[prop];
+			}
+		}
+	}
 
 	/** RUNS */
 
@@ -305,7 +401,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 				var data = res.data;
 
-				if (angular.isObjectEmpty(data)) {
+				if (Object.isEmpty(data)) {
 					return;
 				}
 
@@ -331,7 +427,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 				var data = res.data;
 
-				if (angular.isObjectEmpty(data)) {
+				if (Object.isEmpty(data)) {
 					return;
 				}
 
@@ -359,7 +455,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 				var data = res.data;
 
-				if (angular.isObjectEmpty(data)) {
+				if (Object.isEmpty(data)) {
 					return;
 				}
 
@@ -380,103 +476,6 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 			function() {
 				console.log("run error");
 			});
-	};
-
-	/** ENVS */
-
-	$scope.changeEnv = function(index) {
-		if (index > $scope.servers.length - 1 || index < 0) {
-			return;
-		}
-		$scope.currentServer = $scope.servers[index];
-		$scope.currentServerIndex = index;
-		$scope.serverNameModel = $scope.currentServer.environment.name;
-		$scope.selectConfig(0);
-	};
-
-	$scope.newEnv = function() {
-		var newEnv = {
-			name: $scope.newServerName
-		};
-
-		restService.createNewEnv(newEnv).then(
-			function(res) {
-				var l = $scope.servers.push(res.data.data) - 1;
-				$scope.changeEnv(l);
-
-				var envName = $scope.currentServer.name;
-
-				// create conf state
-				configStates[l] = {};
-				configStates[l].someFailed = false;
-				configStates[l].someOk = false;
-				configStates[l].someNotRun = false;
-				configStates[l].noChildren = true;
-				for (var type of $scope.configTypes) {
-					configStates[l][type] = {};
-					configStates[l][type].someFailed = false;
-					configStates[l][type].someOk = false;
-					configStates[l][type].someNotRun = false;
-					configStates[l][type].noChildren = true;
-
-					configStates[l][type].configStates = [];
-				}
-
-				refreshConfigStates();
-
-				$scope.newServerName = "";
-				/*$scope.newEnvMessage = res.data.message;
-				$timeout(function() {
-					$scope.newEnvMessage = "";
-				}, 3000);*/
-			},
-			function() {});
-	};
-
-	$scope.renameEnv = function(index) {
-		var data = $scope.currentServer.environment.clone();
-		data.name = $scope.serverNameModel;
-		restService.updateEnv(data.id, data).then(
-			function(res) {
-				$scope.currentServer.environment = res.data;
-			},
-			function() {}
-		);
-	};
-
-	$scope.removeEnv = function(index) {
-		var conf = $window.confirm("Are you sure you want to delete this environment? All configs will be removed!" + $scope.currentServer.environment.name);
-		if (!conf) {
-			return;
-		}
-
-		i = index ? index : $scope.currentServerIndex;
-		restService.removeEnv($scope.currentServer.environment.id).then(
-			function(res) {
-				if (res.status != 200) {
-					return;
-				}
-
-				$scope.servers.splice(i, 1);
-				$scope.changeEnv(i === 0 ? 0 : i - 1);
-			},
-			function() {});
-	};
-
-	$scope.moveCurrentEnv = function(dir) {
-		var i = $scope.currentServerIndex;
-		var dstIndex = i + (dir ? 1 : -1);
-
-		restService.reorderEnv(i, dstIndex).then(
-			function(res) {
-				if (res.status != 200) {
-					return;
-				}
-				var it = $scope.servers.splice(i, 1)[0];
-				$scope.servers.splice(dstIndex, 0, it);
-				$scope.changeEnv(dstIndex);
-			},
-			function() {});
 	};
 
 	/** OTHER */

@@ -4,4 +4,6 @@ var Entity = function(obj) {
 	this.updated = obj && obj.updated ? obj.updated : null;
 };
 
+Entity.prototype.NO_UPDATE_FIELDS = ['id', 'created', 'updated'];
+
 module.exports = Entity;

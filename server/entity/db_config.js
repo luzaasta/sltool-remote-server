@@ -13,12 +13,12 @@ var Db_config = function(obj) {
 	this.table = obj && obj.table ? obj.table : null;
 };
 
+Db_config.TABLE_NAME = "DB_CONFIG";
+
 Db_config.prototype = Object.create(Config.prototype);
 Db_config.prototype.constructor = Db_config;
 Db_config.prototype.clone = function() {
 	return new Db_config(this);
 };
-
-Db_config.TABLE_NAME = "DB_CONFIG";
 
 module.exports = Db_config;

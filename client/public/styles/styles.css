@@ -13,6 +13,10 @@ form {
 	height: 500px;
 }
 
+.fixed-line-height {
+  line-height: 500px;
+}
+
 .config-selected {
 	border: 0.25em solid #007bff;
 	padding: 0 0 !important;
@@ -21,7 +25,7 @@ form {
 .config-item-action {
 	padding-top: 0.5rem;
 	padding-bottom: 0.5rem;
-	line-height:24px;
+	line-height: 1.5em;
 }
 
 .btn-icon {

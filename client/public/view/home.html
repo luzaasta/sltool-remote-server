@@ -1,0 +1,337 @@
+<html ng-app="configApp">
+<head>
+	<meta charset="UTF-8" />
+	<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible" />
+	<base href="/" />
+	<title>SL Remote Server</title>
+	<link rel="stylesheet" href="/bootstrap/bootstrap.min.css" />
+	<link rel="stylesheet" href="/fa/all.min.css" />
+	<link rel="stylesheet" href="/styles/styles.css" />
+</head>
+<body class="bg-light">
+
+	<div class="container mt-2" ng-controller="mainController">
+
+		<!-- ADDITIONAL ACTIONS -->
+		<div class="card mb-2">
+			<div class="card-body">
+
+				<div class="row">
+
+					<!-- new env -->
+					<div class="col-3">
+						<input name="newEnv" class="form-control" type="text" ng-model="newServerNameModel" placeholder="Environement name here" />
+					</div>
+
+					<div class="col-3">
+						<button class="btn btn-primary d-block w-100" ng-click="newEnv()" ng-disabled="newServerNameModel.length <= 0">Create new environment</button>
+					</div>
+
+					<div class="col-6 border-left" ng-show="servers.length &gt; 0">
+						<button class="btn btn-primary d-block w-100" ng-click="runAll()" >Run all configs for all envs</button>
+					</div>
+
+				</div>
+			</div>
+		</div>
+
+		<!-- MAIN PANEL -->
+		<div ng-show="servers.length &gt; 0" class="card">
+
+			<!-- HEADER -->
+			<div class="card-header">
+
+				<!-- TABS -->
+				<ul class="nav nav-tabs card-header-tabs nav-fill">
+					<li class="nav-item" ng-repeat="server in servers track by $index">
+						<a href="#" class="nav-link" ng-class="{'active': currentServer.id == server.id}" ng-click="changeEnv($index)">
+							<!-- <span class="fa fa-circle fa-xs text-success" ng-show="getEnvConfigState($index, 'someOk')"></span>
+						<span class="fa fa-circle fa-xs text-danger" ng-show="getEnvConfigState($index, 'someFailed')"></span>
+						<span class="fa fa-circle fa-xs text-warning" ng-show="getEnvConfigState($index, 'someNotRun')"></span>
+						<span class="fa fa-circle fa-xs text-secondary" ng-show="getEnvConfigState($index, 'noChildren')"></span>
+						-->
+						<span>{{server.name}}</span>
+					</a>
+				</li>
+			</ul>
+		</div>
+
+		<!-- BODY -->
+		<div class="card-body row">
+
+			<!-- ENV ACTIONS -->
+			<div class="col-12 pb-2 mb-2 border-bottom">
+
+				<div class="row">
+
+					<div class="col-1">
+						<button ng-show="!currentServer.head" class="btn btn-primary" ng-click="moveCurrentEnv(false)">
+							<span class="fa fa-arrow-left"></span>
+						</button>
+					</div>
+					<div class="col-10 text-center">
+						<div class="form-inline">
+							<input  class="form-control d-inline mr-3" name="renameEnv" type="text" ng-model="currentServerNameModel" />
+							<button class="btn btn-primary mr-5" ng-click="renameEnv()" ng-disabled="currentServerNameModel == currentServer.name || currentServerNameModel.length <= 0">Rename</button>
+							<button class="btn btn-primary mr-3" ng-click="runAllInEnv()" >Run all configs for current env</button>
+							<button class="btn btn-primary" ng-click="removeEnv()" >Remove current env</button>
+
+						</div>
+					</div>
+					<div class="col-1 text-right">
+						<button ng-show="currentServer.next != null" class="btn btn-primary" ng-click="moveCurrentEnv(true)">
+							<span class="fa fa-arrow-right"></span>
+						</button>
+					</div>
+
+				</div>
+			</div>
+
+			<!-- CONFIGS -->
+			<div class="col-12">
+
+				<!-- CONFIG TABS -->
+				<ul class="nav nav-tabs">
+					<li class="nav-item" ng-repeat="confType in configTypes track by $index">
+						<a class="nav-link" ng-class="{'active': currentConfigType == confType}" href="#" ng-click="changeConfigType($index)">
+							<!-- <span class="fa fa-circle fa-xs text-success" ng-show="getConfigListState(confType, 'someOk')"></span>
+						<span class="fa fa-circle fa-xs text-danger" ng-show="getConfigListState(confType, 'someFailed')"></span>
+						<span class="fa fa-circle fa-xs text-warning" ng-show="getConfigListState(confType, 'someNotRun')"></span>
+						<span class="fa fa-circle fa-xs text-secondary" ng-show="getConfigListState(confType, 'noChildren')"></span>
+						-->
+						<span>{{confType}} Configs</span>
+					</a>
+				</li>
+			</ul>
+
+			<!-- CONFIG CONTENT -->
+			<div class="border border-top-0 p-3">
+
+				<div class="row">
+
+					<!-- LIST -->
+					<div class="col-6">
+						<div class="row">
+
+							<!-- SECTION HEADER -->
+							<div class="col-12 pb-3">
+								<div class="border-bottom">
+									<div class="text-left float-left">
+										<span>List of configs</span>
+									</div>
+									<div class="text-right">
+										<button class="fa fa-plus btn btn-icon text-primary" ng-click="addConfig()" title="Add new config to list"></button>
+										<button class="fa fa-play btn btn-icon text-primary" ng-click="runAllOfTypeInEnv()" ng-disabled="getConfigListState(currentConfigType, 'noChildren')" title="Run all configs in list"></button>
+									</div>
+								</div>
+							</div>
+
+							<!-- LIST -->
+							<div class="col-12">
+								<div class="border scroll-col fixed-height">
+									<div class="p-1" ng-class="{'config-selected': currentConfig.id == conf.id}" ng-repeat="conf in serverIdToConfigs[currentServer.id][currentConfigType] track by $index">
+										<div class="row">
+											<div class="col-1 config-item-action">
+												<span class="pl-1">{{conf.order}}</span>
+											</div>
+											<div class="col-6">
+												<a href="#" ng-class="{'disabled': currentConfig.id == conf.id}"" class="nav-link pl-0" ng-click="selectConfig($index)">{{conf.name}}</a>
+											</div>
+											<div class="col-5 text-center">
+												<!-- <span class="fa fa-circle config-item-action {{getConfigState($index)}}" ng-click="showRunMessage()" title="TODO"></span>
+											-->
+											<button class="fas fa-trash-alt btn btn-icon text-danger config-item-action" ng-click="removeConfig($index)" title="Remove this config"></button>
+											<button class="fas fa-copy btn btn-icon text-primary config-item-action" ng-click="duplicateConfig($index)" title="Duplicat this config"></button>
+											<button class="fa fa-play btn btn-icon text-primary config-item-action" ng-click="runSingleInEnv($index)" title="Run this config"></button>
+										</div>
+										<div class="col-12">
+											<span class="date-sub">Last run: {{getDate(conf)}}</span>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+					</div>
+				</div>
+
+				<!-- FORM -->
+				<div class="col-6">
+
+					<div class="row">
+
+						<!-- SECTION HEADER -->
+						<div class="col-12 pb-3">
+							<div class="border-bottom">Config form</div>
+						</div>
+
+						<!-- DB FORM -->
+						<div ng-show="currentConfigType == 'DB' && currentConfig != null" class="col-12">
+
+							<form class="border p-3 fixed-height">
+								<div class="row">
+									<div class="col-6">
+										<div class="form-group">
+											<label>Name</label>
+											<input class="form-control" type="text" ng-model="currentConfig.name" />
+										</div>
+									</div>
+									<div class="col-6"></div>
+									<div class="col-6">
+										<div class="form-group">
+											<label>Host</label>
+											<input class="form-control" type="text" ng-model="currentConfig.host" />
+										</div>
+										<div class="form-group">
+											<label>Port</label>
+											<input class="form-control" type="number" ng-model="currentConfig.port" />
+										</div>
+
+										<div class="form-group">
+											<label>User Name</label>
+											<input class="form-control" type="text" ng-model="currentConfig.user"/>
+										</div>
+										<div class="form-group">
+											<label>Password</label>
+											<input class="form-control" type="password" ng-model="currentConfig.pass" />
+										</div>
+									</div>
+									<div class="col-6">
+										<div class="form-group">
+											<label>DB Type</label>
+											<select class="form-control" ng-model="currentConfig.db_type" ng-options="type for type in dbTypes"></select>
+										</div>
+										<div class="form-group">
+											<label>DB Name</label>
+											<input class="form-control" type="text" ng-model="currentConfig.db" />
+										</div>
+										<div class="form-group">
+											<label>Schema</label>
+											<input class="form-control" type="text" ng-model="currentConfig.schema" />
+										</div>
+										<div class="form-group">
+											<label>Table</label>
+											<input class="form-control" type="text" ng-model="currentConfig.table" />
+										</div>
+									</div>
+									<div class="col-4">
+										<button class="btn btn-primary d-block w-100" type="button" ng-click="saveConfig()">Save</button>
+									</div>
+									<div class="col-4">
+										<button class="btn btn-primary d-block w-100" ng-click="removeConfig()">Remove config</button>
+									</div>
+									<div class="col-4">
+										<button class="btn btn-primary d-block w-100" type="button" ng-click="runSingleInEnv()">Run config</button>
+									</div>
+								</div>
+							</form>
+						</div>
+
+						<!-- SSH FORM -->
+						<div ng-show="currentConfigType == 'SSH' && currentConfig != null" class="col-12">
+
+							<form class="border p-3 fixed-height">
+								<div class="row">
+									<div class="col-6">
+										<div class="form-group">
+											<label>Name</label>
+											<input class="form-control" type="text" ng-model="currentConfig.name" />
+										</div>
+									</div>
+									<div class="col-6"></div>
+									<div class="col-6">
+										<div class="form-group">
+											<label>Host</label>
+											<input class="form-control" type="text" ng-model="currentConfig.connection_conf.host" />
+										</div>
+										<div class="form-group">
+											<label>Port</label>
+											<input class="form-control" type="number" ng-model="currentConfig.connection_conf.port" />
+										</div>
+
+										<div class="form-group">
+											<label>User Name</label>
+											<input class="form-control" type="text" ng-model="currentConfig.connection_conf.username"/>
+										</div>
+										<div class="form-group">
+											<label>Password</label>
+											<input class="form-control" type="password" ng-model="currentConfig.connection_conf.password" />
+										</div>
+
+									</div>
+									<div class="col-6">
+										<div class="form-group">
+											<label>Path test</label>
+											<input class="form-control" type="text" id="serverName" ng-model="currentConfig.path_test"/>
+										</div>
+									</div>
+									<div class="col-4">
+										<button class="btn btn-primary d-block w-100" type="button" ng-click="save()">Save</button>
+									</div>
+									<div class="col-4">
+										<button class="btn btn-primary d-block w-100" ng-click="removeConfig()">Remove config</button>
+									</div>
+									<div class="col-4">
+										<button class="btn btn-primary d-block w-100" type="button" ng-click="runSingleInEnv()">Run config</button>
+									</div>
+								</div>
+							</form>
+						</div>
+
+						<div ng-show="currentConfig == null" class="col-12">
+							<div class="fixed-height fixed-line-height text-center align-middle">
+								<span>No Config selected!</span>
+							</div>
+						</div>
+
+					</div>
+				</div>
+
+			</div>
+
+		</div>
+
+		{{servers}}
+	</div>
+
+</div>
+</div>
+
+<!-- LEGEND -->
+<div class="fixed-top" style="right: unset">
+<div class="mb-2">
+	<span class="fa fa-circle text-success"  title="Some configurations have run ok"></span>
+	<span>Some configurations have run ok</span>
+</div>
+<div class="mb-2">
+	<span class="fa fa-circle text-danger" title="Some configurations have failed"></span>
+	<span>Some configurations have failed</span>
+</div>
+<div class="mb-2">
+	<span class="fa fa-circle text-warning" title="Some configurations did not run at all or a week ago"></span>
+	<span>Some configurations did not run at all</span>
+</div>
+<div class="mb-2">
+	<span class="fa fa-circle text-secondary" title="There are no configurations in the list"></span>
+	<span>There are no configurations in the list</span>
+</div>
+</div>
+
+</div>
+
+<!-- LOADING INDICATOR -->
+<div ng-show="loading" class="load">
+<div class="loader">Loading...</div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="/angular/angular.js"></script>
+<!-- <script src="/scripts/model.js"></script>
+-->
+<script src="/scripts/utils.js"></script>
+<script src="/scripts/script.js"></script>
+<script src="/scripts/services.js"></script>
+<script src="/scripts/controllers.js"></script>
+</body>
+
+</html>

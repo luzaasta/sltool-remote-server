@@ -1,2 +1,2 @@
-call nodemon --ignore data.json --ignore web/public/scripts/ --inspect app.js local-file true
+call nodemon --ignore data.json --ignore client/public/scripts/ --inspect app.js local-file true
 pause

@@ -1,5 +1,6 @@
 /**
  * REPO FOR SINGLE FILE AND AND TABLE
+ * Special props for entities [ NO_UPDATE_FIELDS, TABLE_NAME ]
  */
 console.log("-- loading LocalFileRepository --");
 
@@ -56,6 +57,19 @@ var computeCurrentTableId = function(id, tableName) {
 	dataMap[id].tableIds[tableName] = i;
 };
 
+var getNoUpdateFieldsRecursivelly = function(proto, result) {
+	if (proto == null) {
+		return;
+	}
+	if (proto.NO_UPDATE_FIELDS) {
+		proto.NO_UPDATE_FIELDS.filter(function(item) {
+			return result.hasOwnProperty(item) ? false : (result[item] = true);
+		});
+	}
+
+	getNoUpdateFieldsRecursivelly(proto.__proto__, result);
+};
+
 // CONSTRUCTOR
 
 var LocalFileRepository = function(connector, entityConstructor) {
@@ -85,27 +99,31 @@ var LocalFileRepository = function(connector, entityConstructor) {
 
 /**
  * Modifies the parameter itself so no return!
- * @param  {[type]} env [description]
+ * @param  {[type]} entity [description]
  * @return {[type]}     [description]
  */
-LocalFileRepository.prototype.save = function(env) {
+LocalFileRepository.prototype.save = function(entity) {
 	var records = getDbData(this.id)[this.tableName];
-	var index = records.indexOfByKeyAndValue('id', env.id);
+	var index = records.indexOfByKeyAndValue('id', entity.id);
 
 	if (index < 0) {
-		env.id = incrementTableId(this.id, this.tableName);
-		env.created = +new Date();
-		records.push(env);
+		entity.id = incrementTableId(this.id, this.tableName);
+		entity.created = +new Date();
+		records.push(entity);
 	} else {
-		for (var prop in env) {
-			records[index][prop] = env[prop];
+		var updateFields = {};
+		getNoUpdateFieldsRecursivelly(entity.__proto__, updateFields);
+		for (var prop in entity) {
+			if (entity.hasOwnProperty(prop) && !(prop in updateFields)) {
+				records[index][prop] = entity[prop];
+			}
 		}
 		records[index].updated = +new Date();
 	}
 
 	this.conn.save(getDbData(this.id));
 
-	return index < 0 ? env : records[index];
+	return index < 0 ? entity : records[index];
 };
 
 LocalFileRepository.prototype.delete = function(id) {
@@ -129,7 +147,7 @@ LocalFileRepository.prototype.deleteAll = function() {
 
 
 LocalFileRepository.prototype.exists = function(id) {
-	return getDbData(this.id)[this.tableName].indexOfByKeyAndValue('id', id) > 0;
+	return getDbData(this.id)[this.tableName].indexOfByKeyAndValue('id', id) > -1;
 };
 
 LocalFileRepository.prototype.getAll = function() {
@@ -146,6 +164,11 @@ LocalFileRepository.prototype.getAllByKeyAndValue = function(key, value) {
 		res.push(new this.entityConstructor(e));
 	}
 	return res;
+};
+
+LocalFileRepository.prototype.getByKeyAndValue = function(key, value) {
+	var e = getDbData(this.id)[this.tableName].getByKeyAndValue(key, value);
+	return e ? new this.entityConstructor(e) : null;
 };
 
 LocalFileRepository.prototype.get = function(id) {

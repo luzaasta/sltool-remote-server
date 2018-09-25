@@ -10,42 +10,6 @@ builderApp.run(['$rootScope', '$location', '$timeout',
 
 		console.log('calling run method');
 
-		Array.prototype.indexOfByKeyAndValue = function(key, value) {
-			var i = -1;
-			this.some(function(ele, index) {
-				if (ele[key] == value) {
-					i = index;
-					return;
-				}
-			});
-			return i;
-		};
-
-		Array.prototype.getByKeyAndValue = function(key, value) {
-			var obj = null;
-			this.some(function(ele, index) {
-				if (ele[key] == value) {
-					obj = ele;
-					return;
-				}
-			});
-			return obj;
-		};
-
-		if (angular && typeof angular.isObjectEmpty != 'function') {
-			// exnteds angular object by this function
-			angular.isObjectEmpty = function(obj) {
-				if (obj) {
-					for (var prop in obj) {
-						if (obj.hasOwnProperty(prop)) {
-							return false;
-						}
-					}
-				}
-				return true;
-			};
-		}
-
 		//setup listeners
 		$rootScope.$on('$routeChangeStart', function(ev, next, current) {
 			console.log("route change start: " + $location.url());

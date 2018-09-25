@@ -4,21 +4,21 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 
-require('./scripts/utils/utils.js');
+require('./server/utils/utils.js');
 
-var LocalFileConnector = require('./scripts/services/localFileConnector');
-var RepositoryFactory = require('./scripts/services/repositoryFactory');
+var LocalFileConnector = require('./server/services/localFileConnector');
+var RepositoryFactory = require('./server/services/repositoryFactory');
 
-var EnvironmentRepository = require('./scripts/repositories/environmentRepository');
-var DbConfigRepository = require('./scripts/repositories/dbConfigRepository');
-var SshConfigRepository = require('./scripts/repositories/sshConfigRepository');
+var EnvironmentRepository = require('./server/repositories/environmentRepository');
+var DbConfigRepository = require('./server/repositories/dbConfigRepository');
+var SshConfigRepository = require('./server/repositories/sshConfigRepository');
 
-var Environment = require('./scripts/entity/environment');
-var Db_config = require('./scripts/entity/db_config');
-var Ssh_config = require('./scripts/entity/ssh_config');
+var Environment = require('./server/entity/environment');
+var Db_config = require('./server/entity/db_config');
+var Ssh_config = require('./server/entity/ssh_config');
 
-var entities = require('./scripts/entity/entities');
-var dtos = require('./scripts/dto/dto');
+var entities = require('./server/entity/entities');
+var dtos = require('./server/dto/dto');
 var ServerDTO = dtos.ServerDTO;
 var ServerListDTO = dtos.ServerListDTO;
 
@@ -26,12 +26,12 @@ var CONFIG_TYPES = {
 	DB: {
 		ENTITY_CONSTRUCTOR: Db_config,
 		REPO_CONSTRUCTOR: DbConfigRepository,
-		CONNECTOR_FUNC: require('./scripts/service_connectors/db')
+		CONNECTOR_FUNC: require('./server/service_connectors/db')
 	},
 	SSH: {
 		ENTITY_CONSTRUCTOR: Ssh_config,
 		REPO_CONSTRUCTOR: SshConfigRepository,
-		CONNECTOR_FUNC: require('./scripts/service_connectors/ssh')
+		CONNECTOR_FUNC: require('./server/service_connectors/ssh')
 	}
 };
 
@@ -83,9 +83,10 @@ var sshRepo = repoFactory.getRepoInstance(SshConfigRepository);
 //sshRepo.save({name: "ssh1", env_id: 1});
 
 // static serving
-// app.use(express.static(__dirname + '\\web\\public\\view'));
-app.use('/scripts', express.static('./web/public/scripts/'));
-app.use('/styles', express.static('./web/public/styles/'));
+// app.use(express.static(__dirname + '\\client\\public\\view'));
+app.use('/scripts', express.static('./client/public/scripts/'));
+app.use('/scripts', express.static('./server/utils'));
+app.use('/styles', express.static('./client/public/styles/'));
 app.use('/angular', express.static('./node_modules/angular/'));
 app.use('/bootstrap', express.static('./node_modules/bootstrap/dist/css'));
 app.use('/bootstrap', express.static('./node_modules/bootstrap/dist/js'));
@@ -99,7 +100,7 @@ app.use(bodyParser.urlencoded({
 
 var sendView = function(viewName, res) {
 	res.sendFile(viewName, {
-		root: __dirname + '\\web\\public\\view'
+		root: __dirname + '\\client\\public\\view'
 	});
 };
 
@@ -139,12 +140,12 @@ app.get(API_PREFIX + '/data', function(req, res) {
 		list.push(new ServerDTO(env, configs));
 	}
 
-	res.json(new ServerListDTO(list));
+	res.json(list);
 });
 
 /** ENVIRONMENT */
 
-// list
+// list +
 app.get(API_PREFIX + '/env', function(req, res) {
 	res.json(envRepo.getAll());
 });
@@ -152,34 +153,39 @@ app.get(API_PREFIX + '/env', function(req, res) {
 //create +
 app.post(API_PREFIX + '/env', function(req, res) {
 	//TODO: validate env
+
 	var env = new Environment(req.body);
-	env.order = envRepo.count() + 1;
+	if (env.id && envRepo.exists(env.id)) {
+		res.status(400).json(null);
+	}
+
+	var prev = envRepo.getByKeyAndValue('next', null);
 	envRepo.save(env);
+	if (prev) {
+		prev.next = env.id;
+		envRepo.save(prev);
+	}
+
+	// create relations for DTO
 	var configs = {};
 	for (var cfg in CONFIG_TYPES) {
 		configs[cfg] = [];
 	}
-	res.json({
-		data: new ServerDTO(env, configs),
-		message: 'Env created!'
-	});
+	res.status(201).json(new ServerDTO(env, configs));
 });
 
 // get one +
 app.get(API_PREFIX + '/env/:id', function(req, res) {
 	var id = req.params.id;
 	var env = envRepo.get(id);
-	if (env === null) {
-		res.status(404).json(null);
-		return;
-	}
 
 	res.json(env);
 });
 
-// update
+// update +
 app.patch(API_PREFIX + '/env/:id', function(req, res) {
 	var id = req.params.id;
+	var data = new Environment(req.body);
 
 	// TODO: validate
 
@@ -188,93 +194,64 @@ app.patch(API_PREFIX + '/env/:id', function(req, res) {
 		return;
 	}
 
-	var env = envRepo.save(env);
-
-	res.json(env);
+	res.json(envRepo.save(data));
 });
 
-// replace
-app.put(API_PREFIX + '/env/:id', function(req, res) {
-	//validate req body
-
-	var msg = "";
-	var id = req.params.id;
-	var env = new models.EnvConfig(req.body);
-
-	if (!model.envConfigs[id]) {
-		model.envConfigs.push(env);
-		msg = "New env created";
-	} else {
-		model.envConfigs[id] = env;
-		msg = "Env replaced";
-	}
-
-	model.save();
-	res.json({
-		newConfig: env,
-		message: msg
-	});
-});
+// replace TODO?
+app.put(API_PREFIX + '/env/:id', function(req, res) {});
 
 // delete +
 app.delete(API_PREFIX + '/env/:id', function(req, res) {
 	var id = req.params.id;
-	var env = envRepo.get(id);
-
-	if (!env) {
+	if (!id) {
 		res.status(404).json(null);
 		return;
 	}
+	var curr = envRepo.get(id);
+	var prev = envRepo.getByKeyAndValue('next', id);
+	if (prev) {
+		prev.next = curr.next;
+		envRepo.save(prev);
+	}
 
 	for (var type in CONFIG_TYPES) {
-		repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR).deleteAllByKeyAndValue('env_id', env.id);
+		repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR).deleteAllByKeyAndValue('env_id', id);
 	}
+
 	envRepo.delete(id);
-	res.json(id);
+	res.status(204).send();
 });
 
 /** CONFIGS */
 
-//create
-app.post(API_PREFIX + '/config', function(req, res) {
-	var envName = req.body.envName;
-	var configType = req.body.configType;
-	var configName = req.body.configName;
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	if (env === null) {
-		res.status(400).json({
-			message: 'Env does not exist!'
-		});
+// create +
+app.post(API_PREFIX + '/config/:type', function(req, res) {
+	var type = req.params.type;
+	var envId = req.query.env_id;
+	if (!type || !envId || !envRepo.exists(envId)) {
+		res.status(400).json(null);
 		return;
 	}
+	var repo = repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR);
+	var config = new CONFIG_TYPES[type].ENTITY_CONSTRUCTOR();
+	config.order = repo.count() + 1;
+	config.name = "NEW CONFIG";
+	config.env_id = envId;
 
-	var config = new EnvConfig.CONFIG_TYPE_TO_CONSTRUCTOR[configType](null, configName);
-	env[configType].push(config);
-	model.save();
-	res.json({
-		config: config,
-		message: 'Config created!'
-	});
+	res.json(repo.save(config));
 });
 
-app.delete(API_PREFIX + '/config/:env/:cfg/:id', function(req, res) {
-	var envName = req.params.env;
-	var configType = req.params.cfg;
-	var index = req.params.id;
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	if (env === null) {
-		res.status(404).json({
-			message: 'Unknown env!'
-		});
-		return;
+// delete
+app.delete(API_PREFIX + '/config/:type/:id', function(req, res) {
+	var type = req.params.type;
+	var id = req.params.id;
+	var repo = repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR);
+	if (!type || !id || !repo.exists(id)) {
+		res.status(400).json(null);
 	}
 
-	env[configType].splice(index, 1);
-	model.save();
-	res.json({
-		index: index,
-		message: 'Config removed!'
-	});
+	repo.delete(id);
+	res.json(id);
 });
 
 // replace

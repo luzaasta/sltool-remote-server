@@ -30,26 +30,14 @@ factory('restService', ['$http', function($http) {
 		return $http.patch(API_PREFIX + `/env/${id}`, data);
 	};
 
-	ret.reorderEnv = function(id, newIndex) {
-		return $http.post(API_PREFIX + '/func/reorderEnv', {
-			id: id,
-			newIndex: newIndex
-		});
-	};
-
 	ret.removeEnv = function(id) {
 		return $http.delete(API_PREFIX + `/env/${id}`);
 	};
 
 	/** CONF */
 
-	ret.addConfig = function(env, configType) {
-		var data = {
-			envName: env.envName,
-			configType: configType,
-			configName: "New Config"
-		};
-		return $http.post('/config', data);
+	ret.addConfig = function(configType, envId) {
+		return $http.post(API_PREFIX + `/config/${configType}?env_id=${envId}`);
 	};
 
 	ret.updateConfig = function(env, configType, index) {
@@ -59,19 +47,8 @@ factory('restService', ['$http', function($http) {
 		return $http.put(url, data);
 	};
 
-	ret.removeConfig = function(env, configType, index) {
-		var url = API_PREFIX + `/config/${env.envName}/${configType}/${index}`;
-		return $http.delete(url);
-	};
-
-	ret.duplicateConfig = function(env, configType, index) {
-		var data = {
-			envName: env.envName,
-			configType: configType,
-			index: index
-		};
-
-		return $http.post(API_PREFIX + '/func/duplicateConfig', data);
+	ret.removeConfig = function(configType, id) {
+		return $http.delete(API_PREFIX + `/config/${configType}/${id}`);
 	};
 
 	/** RUN */
@@ -97,17 +74,20 @@ factory('restService', ['$http', function($http) {
 }]).
 
 factory('modelService', function() {
-	var returnObject = {};
 
-	returnObject.State = function() {
+	var State = function() {
 
+	};
+
+	var Linked = function(obj) {
+		this.next = obj && obj.next ? obj.next : null;
 	};
 
 	/**
 	 * [Entity description]
 	 * @param {[type]} obj [description]
 	 */
-	returnObject.Entity = function(obj) {
+	var Entity = function(obj) {
 		this.id = obj && obj.id ? obj.id : null;
 		this.created = obj && obj.created ? obj.created : null;
 		this.updated = obj && obj.updated ? obj.updated : null;
@@ -117,40 +97,34 @@ factory('modelService', function() {
 	 * [Environment description]
 	 * @param {[type]} obj [description]
 	 */
-	returnObject.Environment = function(obj) {
-		returnObject.Entity.call(this, obj);
+	var Environment = function(obj) {
+		Entity.call(this, obj);
+		Linked.call(this, obj);
 
 		this.name = obj && obj.name ? obj.name : null;
-		this.order = obj && obj.order ? obj.order : null;
 		this.os = obj && obj.os ? obj.os : null;
 	};
-	returnObject.Environment.API = "env";
-	returnObject.Environment.prototype = Object.create(returnObject.Entity.prototype);
-	returnObject.Environment.prototype.constructor = returnObject.Environment;
 
 	/**
 	 * [Config description]
 	 * @param {[type]} obj [description]
 	 */
-	returnObject.Config = function(obj) {
-		returnObject.Entity.call(this, obj);
+	var Config = function(obj) {
+		Entity.call(this, obj);
+		Linked.call(this, obj);
 
 		this.env_id = obj && obj.env_id ? obj.env_id : null;
 		this.name = obj && obj.name ? obj.name : null;
-		this.order = obj && obj.order ? obj.order : null;
 		this.last_run_date = obj && obj.last_run_date ? obj.last_run_date : null;
 		this.last_run_state = obj && obj.last_run_state ? obj.last_run_state : null;
 	};
-	returnObject.Config.prototype = Object.create(returnObject.Entity.prototype);
-	returnObject.Config.prototype.constructor = returnObject.Config;
-	returnObject.Config.API = "config";
 
 	/**
 	 * [Db_config description]
 	 * @param {[type]} obj [description]
 	 */
-	returnObject.Db_config = function(obj) {
-		returnObject.Config.call(this, obj);
+	var Db_config = function(obj) {
+		Config.call(this, obj);
 
 		this.db_type = obj && obj.db_type ? obj.db_type : null;
 		this.db = obj && obj.db ? obj.db : null;
@@ -161,38 +135,71 @@ factory('modelService', function() {
 		this.schema = obj && obj.schema ? obj.schema : null;
 		this.table = obj && obj.table ? obj.table : null;
 	};
-	returnObject.Db_config.prototype = Object.create(returnObject.Config.prototype);
-	returnObject.Db_config.prototype.constructor = returnObject.Db_config;
-	returnObject.Db_config.prototype.clone = function() {
-		return new returnObject.Db_config(this);
-	};
-	returnObject.Db_config.API = returnObject.Config.API + "/db";
 
 	/**
 	 * [Ssh_config description]
 	 * @param {[type]} obj [description]
 	 */
-	returnObject.Ssh_config = function(obj) {
-		returnObject.Config.call(this, obj);
+	var Ssh_config = function(obj) {
+		Config.call(this, obj);
 
 		this.connection_conf = obj && obj.connection_conf ? new SshConnectionConf(obj.connection_conf) : null;
 		this.path_test = obj && obj.path_test ? obj.path_test : null;
 	};
-	returnObject.Ssh_config.prototype = Object.create(returnObject.Config.prototype);
-	returnObject.Ssh_config.prototype.constructor = returnObject.Ssh_config;
-	returnObject.Ssh_config.prototype.clone = function() {
-		return new returnObject.Ssh_config(this);
-	};
+
 	var SshConnectionConf = function(obj) {
 		this.host = obj && obj.host ? obj.host : null;
 		this.username = obj && obj.username ? obj.username : null;
 		this.password = obj && obj.password ? obj.password : null;
 		this.port = obj && obj.port ? obj.port : null;
 	};
+
+	Environment.API = "env";
+	Environment.prototype = Object.create(Entity.prototype);
+	Environment.prototype.constructor = Environment;
+	Environment.prototype.clone = function() {
+		return new Environment(this);
+	};
+
+	//------------------------------------------------
+	Config.API = "config";
+	Config.prototype = Object.create(Entity.prototype);
+	Config.prototype.constructor = Config;
+	Config.TYPES = {
+		"DB": Db_config,
+		"SSH": Ssh_config
+	};
+
+	//------------------------------------------------
+	Db_config.API = Config.API + "/db";
+	Db_config.prototype = Object.create(Config.prototype);
+	Db_config.prototype.constructor = Db_config;
+	Db_config.prototype.clone = function() {
+		return new Db_config(this);
+	};
+
+	//------------------------------------------------
+	Ssh_config.prototype = Object.create(Config.prototype);
+	Ssh_config.prototype.constructor = Ssh_config;
+	Ssh_config.prototype.clone = function() {
+		return new Ssh_config(this);
+	};
+
+	//------------------------------------------------
+	Ssh_config.API = Config.API + "/ssh";
 	SshConnectionConf.prototype.SshConnectionConf = function() {
 		return new SshConnectionConf(this);
 	};
-	returnObject.Ssh_config.API = returnObject.Config.API + "/ssh";
 
-	return returnObject;
+
+	var e = new Environment();
+	Object.keys(e).addGetByFunctions();
+
+	//------------------------------------------------
+	return {
+		Environment: Environment,
+		Config: Config,
+		Db_config: Db_config,
+		Ssh_config: Ssh_config
+	};
 });

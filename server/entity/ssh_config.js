@@ -7,6 +7,8 @@ var Ssh_config = function(obj) {
 	this.path_test = obj && obj.path_test ? obj.path_test : null;
 };
 
+Ssh_config.TABLE_NAME = "SSH_CONFIG";
+
 Ssh_config.prototype = Object.create(Config.prototype);
 Ssh_config.prototype.constructor = Ssh_config;
 Ssh_config.prototype.clone = function() {
@@ -23,7 +25,5 @@ var SshConnectionConf = function(obj) {
 SshConnectionConf.prototype.SshConnectionConf = function() {
 	return new SshConnectionConf(this);
 };
-
-Ssh_config.TABLE_NAME = "SSH_CONFIG";
 
 module.exports = Ssh_config;
