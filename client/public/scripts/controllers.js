@@ -20,16 +20,24 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	$scope.currentServerNameModel = "";
 	$scope.newServerNameModel = "";
 	$scope.serverIsMoving = false;
+	$scope.states = null;
+
+	var states = null;
 
 	$scope.kaukoOn = true;
 
 	/** UTILS */
+
 	function getCurrentConfigList() {
 		return $scope.serverIdToConfigs[$scope.currentServer.id][$scope.currentConfigType];
 	}
 
 	function getConfigList(envId, type) {
 		return $scope.serverIdToConfigs[envId][type];
+	}
+
+	function updateStates() {
+		$scope.states = states.initStates($scope.serverIdToConfigs).states;
 	}
 
 	/** INIT PARTS */
@@ -45,6 +53,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	function init(data) {
 		parseAndSortData(data);
+		states = new modelService.States($scope.serverIdToConfigs);
+		$scope.states = new modelService.States($scope.serverIdToConfigs).states;
 		$scope.selectEnv(0);
 	}
 
@@ -133,6 +143,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					var config = new modelService.Config.TYPES[$scope.currentConfigType](res.data);
 					var l = getCurrentConfigList().push(config) - 1;
 					$scope.selectConfig(l);
+					updateStates();
 
 					if (prev) {
 						return restService.updateConfig($scope.currentConfigType, prev.id, {
@@ -199,6 +210,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 						$scope.selectConfig(i === 0 ? 0 : i - 1);
 					}
 					getCurrentConfigList().splice(i, 1);
+					updateStates();
 				},
 				function() {});
 	};
@@ -218,6 +230,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					var config = new modelService.Config.TYPES[$scope.currentConfigType](res.data);
 					var l = getCurrentConfigList().push(config) - 1;
 					$scope.selectConfig(l);
+					updateStates();
 
 					if (prev) {
 						return restService.updateConfig($scope.currentConfigType, prev.id, {
@@ -257,13 +270,15 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 		var prev = $scope.servers.getByNext(null);
 		restService.addEnv({
 				name: $scope.newServerNameModel
-			}).then(function(res) {
+			}).then(
+				function(res) {
 					if (res.status != 201) {
 						return $q.reject();
 					}
 
 					parseAndSortData([res.data], true);
 					$scope.selectEnv($scope.servers.length - 1);
+					updateStates();
 					$scope.newServerNameModel = "";
 
 					if (prev) {
@@ -305,7 +320,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	};
 
 	$scope.removeEnv = function(index) {
-		var conf = $window.confirm("Are you sure you want to delete this environment? All configs will be removed!" + $scope.currentServer.name);
+		var conf = $window.confirm("Are you sure you want to delete this environment? (All child configs will be removed too!) " + $scope.currentServer.name);
 		if (!conf) {
 			return;
 		}
@@ -347,6 +362,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					var i = index > -1 ? index : $scope.servers.indexOfByKeyAndValue('id', server.id);
 					$scope.servers.splice(i, 1);
 					$scope.selectEnv(i === 0 ? 0 : i - 1);
+					updateStates();
 				},
 				function() {});
 	};
@@ -463,6 +479,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 				config.last_run_date = data.last_run_date;
 				config.last_run_state = data.last_run_state;
 				config.last_run_message = data.last_run_message;
+
+				updateStates();
 			},
 			function() {
 				console.log("run error");
@@ -487,6 +505,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					configs[i].last_run_message = data.last_run_message;
 					i++;
 				}
+
+				updateStates();
 			},
 			function() {});
 	};
@@ -514,6 +534,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					configs[i].last_run_message = data.last_run_message;
 					i++;
 				}
+
+				updateStates();
 			},
 			function() {});
 	};
@@ -543,6 +565,8 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 					configs[i].last_run_message = data.last_run_message;
 					i++;
 				}
+
+				updateStates();
 			},
 			function() {});
 	};

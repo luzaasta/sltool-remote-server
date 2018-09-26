@@ -145,7 +145,7 @@ app.get(API_PREFIX + '/data', function(req, res) {
 
 /** ENVIRONMENT */
 
-//create +
+// create +
 app.post(API_PREFIX + '/env', function(req, res) {
 	//TODO: validate env
 
@@ -263,52 +263,8 @@ app.delete(API_PREFIX + '/config/:type/:id', function(req, res) {
 	res.status(204).send();
 });
 
-// replace TODO?
-app.put(API_PREFIX + '/config/:env/:cfg/:id', function(req, res) {});
-
-/** FUNCTIONS */
 
 /** RUNS */
-
-/*app.get(API_PREFIX + '/refresh', function(req, res) {
-	var result = {};
-	runAll(result).then(function() {
-		res.json(result);
-	});
-});
-
-app.get(API_PREFIX + '/refresh/:env', function(req, res) {
-	var envName = req.params.env;
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	if (env === null) {
-		res.status(404).json({
-			message: 'Unknown env!'
-		});
-		return;
-	}
-
-	var result = {};
-	runAllInEnv(env, result).then(function() {
-		res.json(result);
-	});
-});
-
-app.get(API_PREFIX + '/refresh/:env/:cfg', function(req, res) {
-	var envName = req.params.env;
-	var configType = req.params.cfg;
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	if (env === null) {
-		res.status(404).json({
-			message: 'Unknown env!'
-		});
-		return;
-	}
-
-	var result = {};
-	runAllOfTypeInEnv(model.envConfigs.getByKeyAndValue('envName', envName), configType, result).then(function() {
-		res.json(result);
-	});
-});*/
 
 app.get(API_PREFIX + '/refresh/:type/:id', function(req, res) {
 	var type = req.params.type;
@@ -332,12 +288,6 @@ app.get(API_PREFIX + '/refresh/:type/:id', function(req, res) {
 		});
 });
 
-/** LISTEN */
-
-app.listen(3000, function() {
-	console.log('Example app listening on port 3000!');
-});
-
 /** FUNC */
 
 function runSingleInEnv(configType, config) {
@@ -358,45 +308,8 @@ function runSingleInEnv(configType, config) {
 	return def.promise;
 }
 
-function runAllOfTypeInEnv(envConfig, configType, result) {
-	var def = deferred();
+/** LISTEN */
 
-	result[envConfig.envName] = result[envConfig.envName] ? result[envConfig.envName] : {};
-	result[envConfig.envName][configType] = {};
-
-	deferred.map(envConfig[configType], function(config, i) {
-		return runSingleInEnv(envConfig, configType, i, result);
-	})(function(result) {
-		def.resolve();
-	});
-
-	return def.promise;
-}
-
-function runAllInEnv(envConfig, result) {
-	var def = deferred();
-
-	result[envConfig.envName] = {};
-
-	deferred.map(Object.keys(EnvConfig.CONFIG_TYPE_TO_CONSTRUCTOR), function(configType) {
-		return runAllOfTypeInEnv(envConfig, configType, result);
-	})(function(result) {
-		def.resolve();
-	});
-
-	return def.promise;
-}
-
-function runAll(result) {
-	var def = deferred();
-
-	console.log(model.envConfigs);
-
-	deferred.map(model.envConfigs, function(envConfig) {
-		return runAllInEnv(envConfig, result);
-	})(function(result) {
-		def.resolve();
-	});
-
-	return def.promise;
-}
+app.listen(3000, function() {
+	console.log('App listening on port 3000!');
+});

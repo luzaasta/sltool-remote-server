@@ -56,10 +56,6 @@ factory('restService', ['$http', function($http) {
 
 factory('modelService', function() {
 
-	var State = function() {
-
-	};
-
 	var Linked = function(obj) {
 		this.next = obj && obj.next ? obj.next : null;
 	};
@@ -179,11 +175,58 @@ factory('modelService', function() {
 	Object.keys(e).addGetByFunctions();
 	Object.keys(c).addGetByFunctions();
 
+
+	var States = function(envToConfigs) {
+		this.states = {};
+		this.initStates(envToConfigs);
+	};
+
+	States.prototype.initStates = function(envToConfigs) {
+		for (var envId in envToConfigs) {
+			this.states[envId] = this.getDefaultStates();
+			for (var type in Config.TYPES) {
+				this.states[envId][type] = this.getDefaultStates();
+				// no children for type
+				if (envToConfigs[envId][type].length > 0) {
+					this.states[envId][type].CHILDREN++;
+				}
+
+				for (var conf of envToConfigs[envId][type]) {
+					var failed = conf.last_run_state;
+					if (failed == null) {
+						this.states[envId][type].NOT_RUN++;
+					} else if (failed == false) {
+						this.states[envId][type].OK++;
+					} else if (failed == true) {
+						this.states[envId][type].FAILED++;
+					}
+				}
+
+				this.states[envId].CHILDREN += this.states[envId][type].CHILDREN;
+				this.states[envId].OK += this.states[envId][type].OK;
+				this.states[envId].FAILED += this.states[envId][type].FAILED;
+				this.states[envId].NOT_RUN += this.states[envId][type].NOT_RUN;
+			}
+		}
+
+		return this;
+	};
+
+	States.prototype.getDefaultStates = function() {
+		return {
+			OK: 0,
+			FAILED: 0,
+			NOT_RUN: 0,
+			CHILDREN: 0
+		};
+	};
+
 	//------------------------------------------------
 	return {
 		Environment: Environment,
 		Config: Config,
 		Db_config: Db_config,
-		Ssh_config: Ssh_config
+		Ssh_config: Ssh_config,
+		States: States
 	};
 });
