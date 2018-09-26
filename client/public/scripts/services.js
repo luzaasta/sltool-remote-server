@@ -47,19 +47,7 @@ factory('restService', ['$http', function($http) {
 	/** RUN */
 
 	ret.runSingleConfig = function(configType, id) {
-		return $http.get(API_PREFIX + `/refresh/${env.envName}/${configType}/${index}`);
-	};
-
-	ret.runAllInEnvForConfigType = function(id, configType) {
-		return $http.get(API_PREFIX + `/refresh/${id}/${configType}`);
-	};
-
-	ret.runAllInEnv = function(env) {
-		return $http.get(API_PREFIX + `/refresh/${env.envName}`);
-	};
-
-	ret.runAll = function() {
-		return $http.get(API_PREFIX + '/refresh');
+		return $http.get(API_PREFIX + `/refresh/${configType}/${id}`);
 	};
 
 	return ret;
@@ -109,7 +97,8 @@ factory('modelService', function() {
 		this.env_id = obj && obj.env_id ? obj.env_id : null;
 		this.name = obj && obj.name ? obj.name : null;
 		this.last_run_date = obj && obj.last_run_date ? obj.last_run_date : null;
-		this.last_run_state = obj && obj.last_run_state ? obj.last_run_state : null;
+		this.last_run_state = obj && obj.last_run_state !== undefined ? obj.last_run_state : null;
+		this.last_run_message = obj && obj.last_run_message ? obj.last_run_message : null;
 	};
 
 	/**

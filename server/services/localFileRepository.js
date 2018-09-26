@@ -57,17 +57,17 @@ var computeCurrentTableId = function(id, tableName) {
 	dataMap[id].tableIds[tableName] = i;
 };
 
-var fillNoUpdateFieldsRecursivelly = function(proto, result) {
+var fillTableSpecificationListRecursivelly = function(proto, listName, result) {
 	if (proto == null) {
 		return;
 	}
-	if (proto.NO_UPDATE_FIELDS) {
-		proto.NO_UPDATE_FIELDS.filter(function(item) {
+	if (proto[listName]) {
+		proto[listName].filter(function(item) {
 			return result.hasOwnProperty(item) ? false : (result[item] = true);
 		});
 	}
 
-	fillNoUpdateFieldsRecursivelly(proto.__proto__, result);
+	fillTableSpecificationListRecursivelly(proto.__proto__, listName, result);
 };
 
 // CONSTRUCTOR
@@ -79,11 +79,16 @@ var LocalFileRepository = function(connector, entityConstructor) {
 	this.conn = connector;
 	this.id = connector.getId();
 	this.noUpdateFields = {};
-	fillNoUpdateFieldsRecursivelly((new entityConstructor()).__proto__, this.noUpdateFields);
+	this.noClientUpdateFields = {};
+	fillTableSpecificationListRecursivelly((new entityConstructor()).__proto__, "NO_UPDATE_FIELDS", this.noUpdateFields);
+	fillTableSpecificationListRecursivelly((new entityConstructor()).__proto__, "NO_CLIENT_UPDATE_FIELDS", this.noClientUpdateFields);
 
 	console.log("id: " + this.id);
 	console.log("table name: " + this.tableName);
+	console.log("NO UPDATE:");
 	console.log(this.noUpdateFields);
+	console.log("NO CLIENT:");
+	console.log(this.noClientUpdateFields);
 
 	if (getDbData(this.id) === undefined) {
 		loadDbData(this.id, this.conn); // holding data in memory for all repo instances of same path
@@ -105,23 +110,35 @@ var LocalFileRepository = function(connector, entityConstructor) {
  * @param  {[type]} entity [description]
  * @return {[type]}     [description]
  */
-LocalFileRepository.prototype.save = function(entity, isUpdate) {
+LocalFileRepository.prototype.save = function(entity, isUpdate, isUntrusted) {
 	var records = getDbData(this.id)[this.tableName];
 	var index = records.indexOfByKeyAndValue('id', entity.id);
 
-	if (!isUpdate) {
+	if (!isUpdate) { // create
 		for (var prop in entity) {
-			if (entity.hasOwnProperty(prop) && (prop in this.noUpdateFields)) {
-				entity[prop] = null;
+			if (entity.hasOwnProperty(prop)) {
+				if (prop in this.noUpdateFields) {
+					entity[prop] = null;
+				}
+
+				if (isUntrusted && (prop in this.noClientUpdateFields)) {
+					entity[prop] = null;
+				}
 			}
 		}
 		entity.id = incrementTableId(this.id, this.tableName);
 		entity.created = +new Date();
 		records.push(entity);
-	} else {
+	} else { // update
 		for (var prop in entity) {
-			if (entity.hasOwnProperty(prop) && !(prop in this.noUpdateFields)) {
-				records[index][prop] = entity[prop];
+			if (entity.hasOwnProperty(prop)) {
+				if (!(prop in this.noUpdateFields)) {
+					records[index][prop] = entity[prop];
+				}
+
+				if (isUntrusted && (prop in this.noClientUpdateFields)) {
+					records[index][prop] = null;
+				}
 			}
 		}
 		records[index].updated = +new Date();

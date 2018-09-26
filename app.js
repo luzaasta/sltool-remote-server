@@ -145,11 +145,6 @@ app.get(API_PREFIX + '/data', function(req, res) {
 
 /** ENVIRONMENT */
 
-// list +
-app.get(API_PREFIX + '/env', function(req, res) {
-	res.json(envRepo.getAll());
-});
-
 //create +
 app.post(API_PREFIX + '/env', function(req, res) {
 	//TODO: validate env
@@ -160,7 +155,7 @@ app.post(API_PREFIX + '/env', function(req, res) {
 		res.status(400).send();
 	}
 
-	envRepo.save(env);
+	envRepo.save(env, false, true);
 
 	// create relations for DTO
 	var configs = {};
@@ -171,14 +166,6 @@ app.post(API_PREFIX + '/env', function(req, res) {
 	var dto = new ServerDTO(env, configs);
 
 	res.status(201).json(dto);
-});
-
-// get one +
-app.get(API_PREFIX + '/env/:id', function(req, res) {
-	var id = req.params.id;
-	var env = envRepo.get(id);
-
-	res.json(env);
 });
 
 // update +
@@ -194,13 +181,10 @@ app.patch(API_PREFIX + '/env/:id', function(req, res) {
 		return;
 	}
 
-	envRepo.save(data, true);
+	envRepo.save(data, true, true);
 
 	res.status(204).send();
 });
-
-// replace TODO?
-app.put(API_PREFIX + '/env/:id', function(req, res) {});
 
 // delete +
 app.delete(API_PREFIX + '/env/:id', function(req, res) {
@@ -240,7 +224,7 @@ app.post(API_PREFIX + '/config/:type', function(req, res) {
 	}
 
 	config.env_id = Number.parseInt(envId);
-	repo.save(config);
+	repo.save(config, false, true);
 
 	res.status(201).json(config);
 });
@@ -249,8 +233,8 @@ app.post(API_PREFIX + '/config/:type', function(req, res) {
 app.patch(API_PREFIX + '/config/:type/:id', function(req, res) {
 	var type = req.params.type;
 	var id = req.params.id;
-	var data = req.body;
-	data.id = id;
+	var config = req.body;
+	config.id = id;
 	// we won't create new object of config type as the update is going through all props, even with null value
 	// TODO: validate
 
@@ -260,7 +244,7 @@ app.patch(API_PREFIX + '/config/:type/:id', function(req, res) {
 		return;
 	}
 
-	repo.save(data, true);
+	repo.save(config, true, true);
 
 	res.status(204).send();
 });
@@ -286,7 +270,7 @@ app.put(API_PREFIX + '/config/:env/:cfg/:id', function(req, res) {});
 
 /** RUNS */
 
-app.get(API_PREFIX + '/refresh', function(req, res) {
+/*app.get(API_PREFIX + '/refresh', function(req, res) {
 	var result = {};
 	runAll(result).then(function() {
 		res.json(result);
@@ -324,24 +308,28 @@ app.get(API_PREFIX + '/refresh/:env/:cfg', function(req, res) {
 	runAllOfTypeInEnv(model.envConfigs.getByKeyAndValue('envName', envName), configType, result).then(function() {
 		res.json(result);
 	});
-});
+});*/
 
-app.get(API_PREFIX + '/refresh/:env/:cfg/:id', function(req, res) {
-	var envName = req.params.env;
-	var configType = req.params.cfg;
-	var index = req.params.id;
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	if (env === null) {
-		res.status(404).json({
-			message: 'Unknown env!'
-		});
+app.get(API_PREFIX + '/refresh/:type/:id', function(req, res) {
+	var type = req.params.type;
+	var id = req.params.id;
+
+	var repo = repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR);
+	if (!type || !id || !repo.exists(id)) {
+		res.status(400).send();
 		return;
 	}
 
-	var result = {};
-	runSingleInEnv(env, configType, index, result).then(function() {
-		res.json(result);
-	});
+	var conf = repo.get(id);
+
+	runSingleInEnv(type, conf).then(
+		function() {
+			repo.save(conf, true);
+			res.json(conf);
+		},
+		function(res) {
+			console.log("RUN SINGLE FAILED: " + res);
+		});
 });
 
 /** LISTEN */
@@ -352,26 +340,20 @@ app.listen(3000, function() {
 
 /** FUNC */
 
-function runSingleInEnv(envConfig, configType, index, result) {
+function runSingleInEnv(configType, config) {
 	var def = deferred();
+	var result = {};
 
-	/*if (!envConfig[configType] || !envConfig[configType][i]) {
-		def.reject();
-		return def.promise;
-	}*/
-
-	result[envConfig.envName] = result[envConfig.envName] ? result[envConfig.envName] : {};
-	result[envConfig.envName][configType] = result[envConfig.envName][configType] ? result[envConfig.envName][configType] : {};
-	result[envConfig.envName][configType][index] = {};
-	result[envConfig.envName][configType][index].failed = false;
-	result[envConfig.envName][configType][index].message = "";
-
-	funcMap[configType](envConfig[configType][index], result[envConfig.envName][configType][index]).then(function() {
-		var date = +new Date();
-		result[envConfig.envName][configType][index].lastRun = date;
-		envConfig[configType][index].lastRun = date;
-		def.resolve();
-	});
+	CONFIG_TYPES[configType].CONNECTOR_FUNC(config, result).then(
+		function() {
+			config.last_run_date = +new Date();
+			config.last_run_state = !!result.failed;
+			config.last_run_message = result.message;
+			def.resolve();
+		},
+		function() {
+			def.resolve("CONNECTOR FAILED");
+		});
 
 	return def.promise;
 }

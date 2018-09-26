@@ -29,15 +29,6 @@ builderApp.config(['$httpProvider', function($httpProvider) { //$routeProvider
 
 	console.log('configuring');
 
-	//TODO: fetch routes from server
-	// $routeProvider.
-	// when('/', {
-	// 	redirectTo: '/login'
-	// }).
-	// otherwise({
-	// 	redirectTo: '/'
-	// });
-
 	// $httpProvider.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 	// $locationProvider.html5Mode(true);
 

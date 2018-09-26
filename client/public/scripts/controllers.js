@@ -8,8 +8,6 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 		NOT_RUN: 'text-warning'
 	};
 
-	var configStates = null;
-
 	$scope.dbTypes = ["PostgreSQL", "DB2"];
 	$scope.configTypes = Object.keys(modelService.Config.TYPES);
 	$scope.currentConfigType = $scope.configTypes[0];
@@ -28,6 +26,10 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	/** UTILS */
 	function getCurrentConfigList() {
 		return $scope.serverIdToConfigs[$scope.currentServer.id][$scope.currentConfigType];
+	}
+
+	function getConfigList(envId, type) {
+		return $scope.serverIdToConfigs[envId][type];
 	}
 
 	/** INIT PARTS */
@@ -75,11 +77,15 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	// CONF STATES -----
 
-	$scope.getConfigState = function(i) {
-		/*if (!configStates || Object.isEmpty(configStates)) {
-			return null;
-		}
-		return configStates[$scope.currentServer.id][$scope.currentConfigType].configStates[i];*/
+	$scope.getConfigState = function(conf) {
+		var state = conf.last_run_state;
+		if (state == null) return singleConfigStates.NOT_RUN;
+		else if (state == false) return singleConfigStates.OK;
+		else if (state == true) return singleConfigStates.FAILED;
+	};
+
+	$scope.getRunMessage = function(config) {
+		return config.last_run_message != null ? config.last_run_message : "This config has not run yet!";
 	};
 
 
@@ -444,22 +450,19 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	/** RUNS */
 
-	$scope.runSingleInEnv = function(index) {
-		var i = index ? index : $scope.currentConfigIndex;
+	$scope.runSingleConfig = function(index) {
+		var config = index > -1 ? getCurrentConfigList()[index] : $scope.currentConfig;
 
-		restService.runSingleConfig($scope.currentServer, $scope.currentConfigType, i).then(
+		restService.runSingleConfig($scope.currentConfigType, config.id).then(
 			function(res) {
 				if (res.status != 200) {
 					return;
 				}
 
 				var data = res.data;
-				$scope.currentServer.configs[$scope.currentConfigType][i].lastRun = data[$scope.currentServer.envName][$scope.currentConfigType][i].lastRun;
-
-				var failed = data[$scope.currentServer.envName][$scope.currentConfigType][i].failed;
-				var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-				configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates[i] = state;
-				refreshConfigStates();
+				config.last_run_date = data.last_run_date;
+				config.last_run_state = data.last_run_state;
+				config.last_run_message = data.last_run_message;
 			},
 			function() {
 				console.log("run error");
@@ -467,89 +470,81 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	};
 
 	$scope.runAllOfTypeInEnv = function() {
-		restService.runAllInEnvForConfigType($scope.currentServer, $scope.currentConfigType).then(
-			function(res) {
-				if (res.status != 200) {
-					return;
+		var configs = getCurrentConfigList();
+		var promises = [];
+		for (var conf of configs) {
+			promises.push(restService.runSingleConfig($scope.currentConfigType, conf.id));
+		}
+
+		$q.all(promises).then(
+			function(resArray) {
+				var data = null;
+				var i = 0;
+				for (var res of resArray) {
+					data = res.data;
+					configs[i].last_run_date = data.last_run_date;
+					configs[i].last_run_state = data.last_run_state;
+					configs[i].last_run_message = data.last_run_message;
+					i++;
 				}
-
-				var data = res.data;
-
-				if (Object.isEmpty(data)) {
-					return;
-				}
-
-				for (var i in data[$scope.currentServer.envName][$scope.currentConfigType]) {
-					var failed = data[$scope.currentServer.envName][$scope.currentConfigType][i].failed;
-					var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-					configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates[i] = state;
-				}
-
-				refreshConfigStates();
 			},
-			function() {
-				console.log("run error");
-			});
+			function() {});
 	};
 
 	$scope.runAllInEnv = function() {
-		restService.runAllInEnv($scope.currentServer).then(
-			function(res) {
-				if (res.status != 200) {
-					return;
+		var configs = [];
+		var promises = [];
+		var typeConfs = null;
+		for (var confType in modelService.Config.TYPES) {
+			typeConfs = getConfigList($scope.currentServer.id, confType);
+			for (var conf of typeConfs) {
+				promises.push(restService.runSingleConfig(confType, conf.id));
+			}
+			configs = configs.concat(typeConfs);
+		}
+
+		$q.all(promises).then(
+			function(resArray) {
+				var data = null;
+				var i = 0;
+				for (var res of resArray) {
+					data = res.data;
+					configs[i].last_run_date = data.last_run_date;
+					configs[i].last_run_state = data.last_run_state;
+					configs[i].last_run_message = data.last_run_message;
+					i++;
 				}
-
-				var data = res.data;
-
-				if (Object.isEmpty(data)) {
-					return;
-				}
-
-				for (var type of $scope.configTypes) {
-					for (var i in data[$scope.currentServer.envName][type]) {
-						var failed = data[$scope.currentServer.envName][type][i].failed;
-						var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-						configStates[$scope.currentServer.envName][type].configStates[i] = state;
-					}
-				}
-
-				refreshConfigStates();
 			},
-			function() {
-				console.log("run error");
-			});
+			function() {});
 	};
 
 	$scope.runAll = function() {
-		restService.runAll().then(
-			function(res) {
-				if (res.status != 200) {
-					return;
+		var configs = [];
+		var promises = [];
+		var typeConfs = null;
+		for (var envId in $scope.serverIdToConfigs) {
+			for (var confType in modelService.Config.TYPES) {
+				typeConfs = getConfigList(envId, confType);
+				for (var conf of typeConfs) {
+					promises.push(restService.runSingleConfig(confType, conf.id));
 				}
+				configs = configs.concat(typeConfs);
+			}
+		}
 
-				var data = res.data;
-
-				if (Object.isEmpty(data)) {
-					return;
+		$q.all(promises).then(
+			function(resArray) {
+				var data = null;
+				var i = 0;
+				for (var res of resArray) {
+					data = res.data;
+					configs[i].last_run_date = data.last_run_date;
+					configs[i].last_run_state = data.last_run_state;
+					configs[i].last_run_message = data.last_run_message;
+					i++;
 				}
-
-				var ie = 0;
-				for (var env of $scope.servers) {
-					for (var type of $scope.configTypes) {
-						for (var i in data[ie][type]) {
-							var failed = data[ie][type][i].failed;
-							var state = failed === true ? singleConfigStates.FAILED : (failed === false ? singleConfigStates.OK : singleConfigStates.NOT_RUN);
-							configStates[ie][type].configStates[i] = state;
-						}
-					}
-					ie++;
-				}
-
-				refreshConfigStates();
 			},
-			function() {
-				console.log("run error");
-			});
+			function() {});
 	};
 
 	/** OTHER */

@@ -10,7 +10,7 @@ function refreshAccess(conf, result) {
 
 	var ssh = new node_ssh();
 
-	ssh.connect(conf.connectionConf).then(function() {
+	ssh.connect(conf.connection_conf).then(function() {
 		ssh.exec("pwd").then(function(execResult) {
 			var test = execResult == conf.pathTest;
 			result.message = "Access OK and refreshed!";

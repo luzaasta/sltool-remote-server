@@ -70,60 +70,6 @@ Array.prototype.sortLinked = function(nextKey, searchFieldKey) {
 	Array.prototype.splice.apply(this, [0, list.length].concat(list));
 };
 
-var LinkedList = function() {
-	this.head = null;
-	this.tail = null;
-};
-LinkedList.fromArrayOfobjects = function(array) {
-	var head = array.getByKeyAndValue('next', null);
-	if (!head) {
-		return;
-	}
-	list.unshift(head);
-	while (head.next != null) {
-		head = array.getByKeyAndValue('id', head.next);
-		list.push(head);
-	}
-};
-LinkedList.prototype = Object.create(Array.prototype);
-LinkedList.prototype.constructor = LinkedList;
-LinkedList.prototype.oldPush = Array.prototype.push;
-LinkedList.prototype.push = function(linkedObj) {
-	var newNode = {
-		value: linkedObj,
-		next: null
-	};
-
-	if (this.length === 0) {
-		this.head = newNode;
-	}
-
-	if (this.tail) {
-		this.tail.next = newNode;
-	}
-	this.tail = newNode;
-
-	this.oldPush(linkedObj);
-
-	return this;
-};
-LinkedList.prototype.oldUnshift = Array.prototype.unshift;
-LinkedList.prototype.unshift = function(value) {
-	var newNode = {
-		value: value
-	};
-	newNode.next = this.head;
-
-	if (this.length === 0) {
-		this.tail = newNode;
-	}
-	this.head = newNode;
-
-	this.oldUnshift(linkedObj);
-
-	return this;
-};
-
 // make polyfill
 if (typeof Object.assign != 'function') {
 	// Must be writable: true, enumerable: false, configurable: true

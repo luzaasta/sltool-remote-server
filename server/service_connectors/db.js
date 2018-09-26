@@ -6,6 +6,7 @@ var fs = require('fs');
 
 var pool = new Pool();
 pool.setMaxPoolSize(20);
+pool.setConnectTimeout(5);
 
 function refreshAccess(conf, result) {
 	var funcName = "access" + conf.db_type;
