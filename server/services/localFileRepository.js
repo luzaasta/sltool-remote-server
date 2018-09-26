@@ -53,11 +53,11 @@ var computeCurrentTableId = function(id, tableName) {
 	}, {
 		id: 0
 	}).id;
-	console.log("INCREMENT: " + i);
+	console.log("INCREMENT COMPUTED: " + i);
 	dataMap[id].tableIds[tableName] = i;
 };
 
-var getNoUpdateFieldsRecursivelly = function(proto, result) {
+var fillNoUpdateFieldsRecursivelly = function(proto, result) {
 	if (proto == null) {
 		return;
 	}
@@ -67,7 +67,7 @@ var getNoUpdateFieldsRecursivelly = function(proto, result) {
 		});
 	}
 
-	getNoUpdateFieldsRecursivelly(proto.__proto__, result);
+	fillNoUpdateFieldsRecursivelly(proto.__proto__, result);
 };
 
 // CONSTRUCTOR
@@ -78,9 +78,12 @@ var LocalFileRepository = function(connector, entityConstructor) {
 	this.entityConstructor = entityConstructor;
 	this.conn = connector;
 	this.id = connector.getId();
+	this.noUpdateFields = {};
+	fillNoUpdateFieldsRecursivelly((new entityConstructor()).__proto__, this.noUpdateFields);
 
 	console.log("id: " + this.id);
 	console.log("table name: " + this.tableName);
+	console.log(this.noUpdateFields);
 
 	if (getDbData(this.id) === undefined) {
 		loadDbData(this.id, this.conn); // holding data in memory for all repo instances of same path
@@ -102,19 +105,22 @@ var LocalFileRepository = function(connector, entityConstructor) {
  * @param  {[type]} entity [description]
  * @return {[type]}     [description]
  */
-LocalFileRepository.prototype.save = function(entity) {
+LocalFileRepository.prototype.save = function(entity, isUpdate) {
 	var records = getDbData(this.id)[this.tableName];
 	var index = records.indexOfByKeyAndValue('id', entity.id);
 
-	if (index < 0) {
+	if (!isUpdate) {
+		for (var prop in entity) {
+			if (entity.hasOwnProperty(prop) && (prop in this.noUpdateFields)) {
+				entity[prop] = null;
+			}
+		}
 		entity.id = incrementTableId(this.id, this.tableName);
 		entity.created = +new Date();
 		records.push(entity);
 	} else {
-		var updateFields = {};
-		getNoUpdateFieldsRecursivelly(entity.__proto__, updateFields);
 		for (var prop in entity) {
-			if (entity.hasOwnProperty(prop) && !(prop in updateFields)) {
+			if (entity.hasOwnProperty(prop) && !(prop in this.noUpdateFields)) {
 				records[index][prop] = entity[prop];
 			}
 		}

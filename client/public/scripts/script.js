@@ -42,16 +42,24 @@ builderApp.config(['$httpProvider', function($httpProvider) { //$routeProvider
 	// $locationProvider.html5Mode(true);
 
 	// register the interceptor via an anonymous factory
-	$httpProvider.interceptors.push(['$q', '$location', '$rootScope', function($q, $location, $rootScope) {
+	$httpProvider.interceptors.push(['$q', '$location', '$rootScope', '$timeout', function($q, $location, $rootScope, $timeout) {
 		return {
 			'request': function(config) {
-				$rootScope.loading = true;
+				if ($rootScope.q === undefined) {
+					$rootScope.q = 0;
+				}
+				$rootScope.q++;
+				$timeout(function() {
+					if ($rootScope.q > 0) {
+						$rootScope.loading = true;
+					}
+				}, 150);
 				// do something on success
 				return config;
 			},
 
 			'requestError': function(rejection) {
-				$rootScope.loading = true;
+				// $rootScope.loading = true;
 				console.log("REQUEST ERROR FOUND");
 				// do something on error
 				// if (canRecover(rejection)) {
@@ -61,7 +69,10 @@ builderApp.config(['$httpProvider', function($httpProvider) { //$routeProvider
 			},
 
 			'response': function(response) {
-				$rootScope.loading = false;
+				$rootScope.q--;
+				if ($rootScope.q == 0) {
+					$rootScope.loading = false;
+				}
 				if (response.status === 401) {
 					console.log('RESPONSE: found 401, back to login');
 					$rootScope.doAuth();
@@ -77,7 +88,10 @@ builderApp.config(['$httpProvider', function($httpProvider) { //$routeProvider
 			},
 
 			'responseError': function(rejection) {
-				$rootScope.loading = false;
+				$rootScope.q--;
+				if ($rootScope.q == 0) {
+					$rootScope.loading = false;
+				}
 				if (rejection.status === 401) {
 					$rootScope.doAuth();
 					console.log('RESPONSE ERROR: found 401, back to login');

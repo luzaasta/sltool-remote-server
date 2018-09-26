@@ -18,12 +18,8 @@ factory('restService', ['$http', function($http) {
 
 	/** ENV */
 
-	ret.getEnvList = function() {
-		return $http.get(API_PREFIX + '/env');
-	};
-
-	ret.createNewEnv = function(newEnv) {
-		return $http.post(API_PREFIX + '/env', newEnv);
+	ret.addEnv = function(data) {
+		return $http.post(API_PREFIX + '/env', data);
 	};
 
 	ret.updateEnv = function(id, data) {
@@ -36,15 +32,12 @@ factory('restService', ['$http', function($http) {
 
 	/** CONF */
 
-	ret.addConfig = function(configType, envId) {
-		return $http.post(API_PREFIX + `/config/${configType}?env_id=${envId}`);
+	ret.addConfig = function(configType, envId, data) {
+		return $http.post(API_PREFIX + `/config/${configType}?env_id=${envId}`, data);
 	};
 
-	ret.updateConfig = function(env, configType, index) {
-		var url = API_PREFIX + `/config/${env.envName}/${configType}/${index}`;
-		// var url = '/config/par/DB/1';
-		var data = env[configType][index];
-		return $http.put(url, data);
+	ret.updateConfig = function(configType, id, data) {
+		return $http.patch(API_PREFIX + `/config/${configType}/${id}`, data);
 	};
 
 	ret.removeConfig = function(configType, id) {
@@ -53,12 +46,12 @@ factory('restService', ['$http', function($http) {
 
 	/** RUN */
 
-	ret.runSingleConfig = function(env, configType, index) {
+	ret.runSingleConfig = function(configType, id) {
 		return $http.get(API_PREFIX + `/refresh/${env.envName}/${configType}/${index}`);
 	};
 
-	ret.runAllInEnvForConfigType = function(env, configType) {
-		return $http.get(API_PREFIX + `/refresh/${env.envName}/${configType}`);
+	ret.runAllInEnvForConfigType = function(id, configType) {
+		return $http.get(API_PREFIX + `/refresh/${id}/${configType}`);
 	};
 
 	ret.runAllInEnv = function(env) {
@@ -193,7 +186,9 @@ factory('modelService', function() {
 
 
 	var e = new Environment();
+	var c = new Config();
 	Object.keys(e).addGetByFunctions();
+	Object.keys(c).addGetByFunctions();
 
 	//------------------------------------------------
 	return {

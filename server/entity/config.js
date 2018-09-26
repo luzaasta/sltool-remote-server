@@ -14,4 +14,6 @@ var Config = function(obj) {
 Config.prototype = Object.create(Entity.prototype);
 Config.prototype.constructor = Config;
 
+Config.prototype.NO_UPDATE_FIELDS = ['last_run_date', 'last_run_state'];
+
 module.exports = Config;

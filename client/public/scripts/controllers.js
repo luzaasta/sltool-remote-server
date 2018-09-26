@@ -21,6 +21,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	$scope.currentServerNameModel = "";
 	$scope.newServerNameModel = "";
+	$scope.serverIsMoving = false;
 
 	$scope.kaukoOn = true;
 
@@ -42,28 +43,31 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	function init(data) {
 		parseAndSortData(data);
-		// initConfigStates();
-		$scope.changeEnv(0);
+		$scope.selectEnv(0);
 	}
 
-	function parseAndSortData(data) {
+	function parseAndSortData(data, shouldNotSort) {
 		var env = null;
 		for (var server of data) {
 			env = new modelService.Environment(server.environment);
 			$scope.servers.push(env);
-			$scope.serverIdToConfigs[env.id] = parseAndSortConfigs(server.configs);
+			$scope.serverIdToConfigs[env.id] = parseAndSortConfigs(server.configs, shouldNotSort);
 		}
-		$scope.servers.sortLinked('next', 'id');
+		if (!shouldNotSort) {
+			$scope.servers.sortLinked('next', 'id');
+		}
 	}
 
-	function parseAndSortConfigs(confs) {
+	function parseAndSortConfigs(confs, shouldNotSort) {
 		var configs = {};
 		for (var type of $scope.configTypes) {
 			configs[type] = [];
 			for (var config of confs[type]) {
 				configs[type].push(new modelService.Config.TYPES[type](config));
 			}
-			configs[type].sortLinked('next', 'id');
+			if (!shouldNotSort) {
+				configs[type].sortLinked('next', 'id');
+			}
 		}
 
 		return configs;
@@ -71,115 +75,17 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 	// CONF STATES -----
 
-	function initConfigStates() {
-		configStates = {};
-		var index = 0;
-		for (var server of $scope.servers) {
-			configStates[index] = {};
-			configStates[index].someFailed = false;
-			configStates[index].someOk = false;
-
-			for (var type of $scope.configTypes) {
-				configStates[index][type] = {};
-				configStates[index][type].someFailed = false;
-				configStates[index][type].someOk = false;
-
-				configStates[index][type].configStates = [];
-
-				// handle no children and some not run
-				if (server.configs[type].length == 0) {
-					configStates[index].noChildren = true;
-					configStates[index][type].noChildren = true;
-					configStates[index][type].someNotRun = false;
-				} else {
-					configStates[index].someNotRun = true;
-					configStates[index][type].noChildren = false;
-					configStates[index][type].someNotRun = true;
-				}
-
-				for (var i = 0; i < server.configs[type].length; i++) {
-					configStates[index][type].configStates.push(singleConfigStates.NOT_RUN);
-				}
-			}
-			index++;
-		}
-
-		// console.log(configStates);
-	}
-
-	// no children in type is the same as configstates.length == 0
-	function refreshConfigStates() {
-		console.log(configStates);
-		var failedE = okE = notRunE = noChildrenE = failedT = okT = notRunT = 0;
-		for (var index in configStates) {
-
-			failedE = okE = notRunE = noChildrenE = 0;
-
-			for (var type of $scope.configTypes) {
-
-				failedT = okT = notRunT = 0;
-
-				if (configStates[index][type].configStates.length == 0) {
-					configStates[index][type].noChildren = true;
-					noChildrenE++;
-				} else {
-					configStates[index][type].noChildren = false;
-				}
-
-				for (var i = 0; i < configStates[index][type].configStates.length; i++) {
-
-					var state = configStates[index][type].configStates[i];
-
-					if (state === singleConfigStates.NOT_RUN) {
-						notRunE++;
-						notRunT++;
-					} else if (state === singleConfigStates.FAILED) {
-						failedE++;
-						failedT++;
-					} else if (state === singleConfigStates.OK) {
-						okE++;
-						okT++;
-					}
-				}
-				configStates[index][type].someFailed = failedT > 0;
-				configStates[index][type].someOk = okT > 0;
-				configStates[index][type].someNotRun = notRunT > 0;
-
-			}
-			configStates[index].noChildren = noChildrenE > 0;
-			configStates[index].someFailed = failedE > 0;
-			configStates[index].someOk = okE > 0;
-			configStates[index].someNotRun = notRunE > 0;
-		}
-
-		console.log(configStates);
-	}
-
-	$scope.getEnvConfigState = function(index, prop) {
-		if (!configStates || Object.isEmpty(configStates)) {
-			return null;
-		}
-		return configStates[index][prop];
-	};
-
-	$scope.getConfigListState = function(type, prop) {
-		if (!configStates || Object.isEmpty(configStates)) {
-			return null;
-		}
-		return configStates[$scope.currentServer.order - 1][type][prop];
-	};
-
 	$scope.getConfigState = function(i) {
-		if (!configStates || Object.isEmpty(configStates)) {
+		/*if (!configStates || Object.isEmpty(configStates)) {
 			return null;
 		}
-		return configStates[$scope.currentServer.id][$scope.currentConfigType].configStates[i];
+		return configStates[$scope.currentServer.id][$scope.currentConfigType].configStates[i];*/
 	};
 
 
 	/** CONFS */
 
-	$scope.changeConfigType = function(index) {
+	$scope.selectConfigType = function(index) {
 		if (index > $scope.configTypes.length - 1 || index < 0) {
 			return;
 		}
@@ -198,9 +104,9 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 
 	$scope.saveConfig = function(index) {
-		var i = index ? index : $scope.currentConfigIndex;
+		var curr = index > -1 ? getCurrentConfigList()[index] : $scope.currentConfig;
 
-		restService.updateConfig($scope.currentServer, $scope.currentConfigType, i).then(
+		restService.updateConfig($scope.currentConfigType, curr.id, curr).then(
 			function() {
 
 			},
@@ -209,63 +115,128 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 			});
 	};
 
-	$scope.addConfig = function(index) {
-		var i = index ? index : $scope.currentConfigIndex;
+	$scope.addConfig = function() {
+		var prev = getCurrentConfigList().getByNext(null);
 
 		restService.addConfig($scope.currentConfigType, $scope.currentServer.id).then(
-			function(res) {
-				if (res.status != 200) {
-					return;
-				}
+				function(res) {
+					if (res.status != 201) {
+						return;
+					}
 
-				var config = new modelService.Config.TYPES[$scope.currentConfigType].ENTITY_CONSTRUCTOR(res.data);
-				var l = $scope.currentServer.configs[$scope.currentConfigType].push(config) - 1;
-				$scope.selectConfig(l);
-				//configStates[$scope.currentServer.name][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
-				//refreshConfigStates();
-			},
-			function() {});
+					var config = new modelService.Config.TYPES[$scope.currentConfigType](res.data);
+					var l = getCurrentConfigList().push(config) - 1;
+					$scope.selectConfig(l);
+
+					if (prev) {
+						return restService.updateConfig($scope.currentConfigType, prev.id, {
+							next: $scope.currentConfig.id
+						});
+					}
+
+					return $q.reject();
+				},
+				function() {
+					return $q.reject();
+				})
+			.then(
+				function(res) {
+					if (res.status != 204) {
+						return;
+					}
+					prev.next = $scope.currentConfig.id;
+				},
+				function() {});
 	};
 
 	$scope.removeConfig = function(index) {
-		var i = index ? index : $scope.currentConfigIndex;
+		var config = index > -1 ? getCurrentConfigList()[index] : $scope.currentConfig;
+		var confirmed = $window.confirm("Are you sure you want to delete this config? " + config.name);
+		if (!confirmed) {
+			return;
+		}
 
-		restService.removeConfig($scope.currentServer, $scope.currentConfigType, i).then(
-			function(res) {
-				if (res.status != 200) {
-					return;
-				}
+		var promise = null;
+		var prev = getCurrentConfigList().getByNext(config.id);
+		if (prev) {
+			promise = restService.updateConfig($scope.currentConfigType, prev.id, {
+				next: config.next
+			});
+		} else {
+			promise = $q.resolve({
+				status: 204
+			});
+		}
 
-				it = $scope.currentServer.configs[$scope.currentConfigType].splice(i, 1)[0];
-				var ind = i > 0 ? i - 1 : ($scope.currentServer[$scope.currentConfigType].length > 0 ? 0 : -1);
-				$scope.selectConfig(ind);
-				configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates.splice(i, 1);
-				refreshConfigStates();
-			},
-			function() {});
+		promise
+			.then(
+				function(res) {
+					if (res.status != 204) {
+						return $q.reject();
+					}
+					if (prev) {
+						prev.next = config.next;
+					}
+					return restService.removeConfig($scope.currentConfigType, config.id);
+				},
+				function() {
+					return $q.reject();
+				})
+			.then(
+				function(res) {
+					if (res.status != 204) {
+						return;
+					}
+
+					var i = index > -1 ? index : getCurrentConfigList().indexOfByKeyAndValue('id', config.id);
+					if (config.id == $scope.currentConfig.id) {
+						$scope.selectConfig(i === 0 ? 0 : i - 1);
+					}
+					getCurrentConfigList().splice(i, 1);
+				},
+				function() {});
 	};
 
+	// TODO
 	$scope.duplicateConfig = function(index) {
-		var i = index ? index : $scope.currentConfigIndex;
+		var prev = getCurrentConfigList().getByNext(null);
+		var newOne = (index > -1 ? getCurrentConfigList()[index] : $scope.currentConfig).clone();
+		newOne.next = null;
 
-		restService.duplicateConfig($scope.currentServer, $scope.currentConfigType, i).then(
-			function(res) {
-				if (res.status != 200) {
-					return;
-				}
-				var data = res.data;
-				var l = $scope.currentSever.configs[$scope.currentConfigType].push(data) - 1;
-				$scope.selectConfig(l);
-				configStates[$scope.currentServer.envName][$scope.currentConfigType].configStates[l] = singleConfigStates.NOT_RUN;
-				refreshConfigStates();
-			},
-			function() {}
-		);
+		restService.addConfig($scope.currentConfigType, $scope.currentServer.id, newOne).then(
+				function(res) {
+					if (res.status != 201) {
+						return;
+					}
+
+					var config = new modelService.Config.TYPES[$scope.currentConfigType](res.data);
+					var l = getCurrentConfigList().push(config) - 1;
+					$scope.selectConfig(l);
+
+					if (prev) {
+						return restService.updateConfig($scope.currentConfigType, prev.id, {
+							next: $scope.currentConfig.id
+						});
+					}
+
+					return $q.reject();
+				},
+				function() {
+					return $q.reject();
+				})
+			.then(
+				function(res) {
+					if (res.status != 204) {
+						return;
+					}
+					prev.next = $scope.currentConfig.id;
+				},
+				function() {});
 	};
 
 	/** ENVS */
 
-	$scope.changeEnv = function(index) {
+	$scope.selectEnv = function(index) {
 		if (index > $scope.servers.length - 1 || index < 0) {
 			return;
 		}
@@ -277,30 +248,51 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 
 
 	$scope.newEnv = function() {
+		var prev = $scope.servers.getByNext(null);
+		restService.addEnv({
+				name: $scope.newServerNameModel
+			}).then(function(res) {
+					if (res.status != 201) {
+						return $q.reject();
+					}
 
-		var newEnv = new modelService.Environment();
-		newEnv.name = $scope.newServerNameModel;
+					parseAndSortData([res.data], true);
+					$scope.selectEnv($scope.servers.length - 1);
+					$scope.newServerNameModel = "";
 
-		restService.createNewEnv(newEnv).then(
-			function(res) {
+					if (prev) {
+						return restService.updateEnv(prev.id, {
+							next: $scope.currentServer.id
+						});
+					}
 
-				$scope.servers[$scope.servers.length - 1].next = res.data.environment.id;
-
-				parseAndSortData([res.data]);
-
-				$scope.changeEnv($scope.servers.length - 1);
-
-				$scope.newServerNameModel = "";
-			},
-			function() {});
+					return $q.reject();
+				},
+				function() {
+					return $q.reject();
+				})
+			.then(
+				function(res) {
+					if (res.status != 204) {
+						return;
+					}
+					prev.next = $scope.currentServer.id;
+				},
+				function() {});
 	};
 
 	$scope.renameEnv = function(index) {
-		var data = $scope.currentServer.clone();
-		data.name = $scope.currentServerNameModel;
-		restService.updateEnv(data.id, data).then(
+		var data = {
+			name: $scope.currentServerNameModel
+		};
+		var id = index > -1 ? $scope.servers[index] : $scope.currentServer.id;
+		restService.updateEnv(id, data).then(
 			function(res) {
-				copyOwnProps(new modelService.Environment(res.data), $scope.currentServer);
+				if (res.status != 204) {
+					return;
+				}
+
+				$scope.currentServer.name = $scope.currentServerNameModel;
 			},
 			function() {}
 		);
@@ -312,52 +304,134 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 			return;
 		}
 
-		var id = index >= 0 ? $scope.servers[i].id : $scope.currentServer.id;
+		var server = index > -1 ? $scope.servers[i] : $scope.currentServer;
 
-		restService.removeEnv(id).then(
-			function(res) {
-				if (!res.status.toString().startsWith("20")) {
-					return;
-				}
+		var promise = null;
+		var prev = $scope.servers.getByNext(server.id);
+		if (prev) {
+			promise = restService.updateEnv(prev.id, {
+				next: server.next
+			});
+		} else {
+			promise = $q.resolve({
+				status: 204
+			});
+		}
 
-				var i = index >= 0 || $scope.servers.indexOfByKeyAndValue('id', id);
-				if (i > 0) {
-					var next = $scope.servers[i].next;
-					$scope.servers[i - 1].next = next;
-				}
-				$scope.servers.splice(i, 1);
-				$scope.servers.sortLinked('next', 'id');
-				$scope.changeEnv(i === 0 ? 0 : i - 1);
-			},
-			function() {});
-	};
-
-	$scope.moveCurrentEnv = function(dir) {
-		var oldOrder = $scope.currentServer.order;
-		var newOrder = oldOrder + (dir ? 1 : -1);
-		var data1 = {
-			order: newOrder
-		};
-		var data2 = {
-			order: oldOrder
-		};
-
-		restService.updateEnv($scope.currentServer.id, data1)
+		promise
 			.then(
 				function(res) {
-					$scope.currentServer.order = res.data.order;
-					return restService.updateEnv($scop.servers[newOrder - 1].id, data2);
+					if (res.status != 204) {
+						return $q.reject();
+					}
+					if (prev) {
+						prev.next = server.next;
+					}
+					return restService.removeEnv(server.id);
 				},
-				function() {}
+				function() {
+					return $q.reject();
+				})
+			.then(
+				function(res) {
+					if (res.status != 204) {
+						return;
+					}
+
+					var i = index > -1 ? index : $scope.servers.indexOfByKeyAndValue('id', server.id);
+					$scope.servers.splice(i, 1);
+					$scope.selectEnv(i === 0 ? 0 : i - 1);
+				},
+				function() {});
+	};
+
+	$scope.moveEnv = function(dir, index) {
+		var currD, prevD, prevPrevD, nextD, d1, d2, d3;
+		var curr, prev, prevPrev, next;
+		curr = index > -1 ? $scope.servers[index] : $scope.currentServer;
+
+		if (dir) { // right
+			prev = $scope.servers.getByNext(curr.id);
+			next = $scope.servers.getById(curr.next);
+			currD = {
+				id: curr.id,
+				next: next.next
+			};
+			if (prev) {
+				prevD = {
+					id: prev.id,
+					next: next.id
+				};
+			}
+			nextD = {
+				id: next.id,
+				next: curr.id
+			};
+
+			d1 = currD;
+			d2 = nextD;
+			d3 = prevD;
+		} else { // left
+			prev = $scope.servers.getByNext(curr.id);
+			prevPrev = prev ? $scope.servers.getByNext(prev.id) : null;
+			currD = {
+				id: curr.id,
+				next: prev ? prev.id : null
+			};
+			if (prev) {
+				prevD = {
+					id: prev.id,
+					next: curr.next
+				};
+			}
+			if (prevPrev) {
+				prevPrevD = {
+					id: prevPrev.id,
+					next: curr.id
+				};
+			}
+			d1 = currD;
+			d2 = prevD;
+			d3 = prevPrevD;
+		}
+
+		$scope.serverIsMoving = true;
+		restService.updateEnv(d1.id, d1)
+			.then(
+				function(res) {
+					$scope.servers.getById(d1.id).next = d1.next;
+					return restService.updateEnv(d2.id, d2);
+				},
+				function() {
+					return $q.reject();
+				}
 			)
 			.then(
 				function(res) {
-					$scop.servers[newOrder - 1].order = res.data.order;
-					$scope.servers.sortLinked('next', 'id');
-					$scope.changeEnv(newOrder - 1);
+					$scope.servers.getById(d2.id).next = d2.next;
+					if (d3) {
+						return restService.updateEnv(d3.id, d3);
+					}
+					return $q.reject();
 				},
-				function() {}
-			);
+				function() {
+					return $q.reject();
+				}
+			)
+			.then(
+				function(res) {
+					$scope.servers.getById(d3.id).next = d3.next;
+					return $q.resolve();
+				},
+				function() {
+					return $q.resolve();
+				}
+			).then(function() {
+				$scope.servers.sortLinked('next', 'id');
+				$scope.serverIsMoving = false;
+			}, function() {
+				console.error("something bad happened");
+			});
 	};
 
 	function copyOwnProps(src, dst) {
@@ -481,11 +555,11 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 	/** OTHER */
 
 	$scope.getDate = function(conf) {
-		if (!conf || !conf.lastRun) {
+		if (!conf || !conf.last_run_date) {
 			return "never";
 		}
 
-		return (new Date(conf.lastRun)).toLocaleString();
+		return (new Date(conf.last_run_date)).toLocaleString();
 	};
 
 }]);

@@ -154,24 +154,23 @@ app.get(API_PREFIX + '/env', function(req, res) {
 app.post(API_PREFIX + '/env', function(req, res) {
 	//TODO: validate env
 
+	// check if env does not already exists
 	var env = new Environment(req.body);
 	if (env.id && envRepo.exists(env.id)) {
-		res.status(400).json(null);
+		res.status(400).send();
 	}
 
-	var prev = envRepo.getByKeyAndValue('next', null);
 	envRepo.save(env);
-	if (prev) {
-		prev.next = env.id;
-		envRepo.save(prev);
-	}
 
 	// create relations for DTO
 	var configs = {};
 	for (var cfg in CONFIG_TYPES) {
 		configs[cfg] = [];
 	}
-	res.status(201).json(new ServerDTO(env, configs));
+	// if this fails, then rollback the whole shit! :D
+	var dto = new ServerDTO(env, configs);
+
+	res.status(201).json(dto);
 });
 
 // get one +
@@ -185,16 +184,19 @@ app.get(API_PREFIX + '/env/:id', function(req, res) {
 // update +
 app.patch(API_PREFIX + '/env/:id', function(req, res) {
 	var id = req.params.id;
-	var data = new Environment(req.body);
-
+	var data = req.body;
+	data.id = id;
+	// we won't create new object of env type as the update is going through all props, even with null value
 	// TODO: validate
 
 	if (!envRepo.exists(id)) {
-		res.status(400).json(null);
+		res.status(400).send();
 		return;
 	}
 
-	res.json(envRepo.save(data));
+	envRepo.save(data, true);
+
+	res.status(204).send();
 });
 
 // replace TODO?
@@ -204,21 +206,17 @@ app.put(API_PREFIX + '/env/:id', function(req, res) {});
 app.delete(API_PREFIX + '/env/:id', function(req, res) {
 	var id = req.params.id;
 	if (!id) {
-		res.status(404).json(null);
+		res.status(404).send();
 		return;
 	}
-	var curr = envRepo.get(id);
-	var prev = envRepo.getByKeyAndValue('next', id);
-	if (prev) {
-		prev.next = curr.next;
-		envRepo.save(prev);
-	}
 
+	// cascade delete
 	for (var type in CONFIG_TYPES) {
 		repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR).deleteAllByKeyAndValue('env_id', id);
 	}
 
 	envRepo.delete(id);
+
 	res.status(204).send();
 });
 
@@ -228,90 +226,63 @@ app.delete(API_PREFIX + '/env/:id', function(req, res) {
 app.post(API_PREFIX + '/config/:type', function(req, res) {
 	var type = req.params.type;
 	var envId = req.query.env_id;
+	var data = req.body;
 	if (!type || !envId || !envRepo.exists(envId)) {
-		res.status(400).json(null);
+		res.status(400).send();
 		return;
 	}
-	var repo = repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR);
-	var config = new CONFIG_TYPES[type].ENTITY_CONSTRUCTOR();
-	config.order = repo.count() + 1;
-	config.name = "NEW CONFIG";
-	config.env_id = envId;
 
-	res.json(repo.save(config));
+	var repo = repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR);
+
+	var config = new CONFIG_TYPES[type].ENTITY_CONSTRUCTOR(data);
+	if (data.name == undefined) {
+		config.name = "NEW CONFIG";
+	}
+
+	config.env_id = Number.parseInt(envId);
+	repo.save(config);
+
+	res.status(201).json(config);
 });
 
-// delete
+// update +
+app.patch(API_PREFIX + '/config/:type/:id', function(req, res) {
+	var type = req.params.type;
+	var id = req.params.id;
+	var data = req.body;
+	data.id = id;
+	// we won't create new object of config type as the update is going through all props, even with null value
+	// TODO: validate
+
+	var repo = repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR);
+	if (!type || !id || !repo.exists(id)) {
+		res.status(400).send();
+		return;
+	}
+
+	repo.save(data, true);
+
+	res.status(204).send();
+});
+
+// delete +
 app.delete(API_PREFIX + '/config/:type/:id', function(req, res) {
 	var type = req.params.type;
 	var id = req.params.id;
 	var repo = repoFactory.getRepoInstance(CONFIG_TYPES[type].REPO_CONSTRUCTOR);
 	if (!type || !id || !repo.exists(id)) {
-		res.status(400).json(null);
+		res.status(400).send();
 	}
 
 	repo.delete(id);
-	res.json(id);
+
+	res.status(204).send();
 });
 
-// replace
-app.put(API_PREFIX + '/config/:env/:cfg/:id', function(req, res) {
-	var envName = req.params.env;
-	var configType = req.params.cfg;
-	var index = req.params.id;
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	if (env === null) {
-		res.status(404).json({
-			message: 'Unknown env!'
-		});
-		return;
-	}
-
-	var data = req.body;
-
-	for (var prop in data) {
-		env[configType][index][prop] = data[prop];
-	}
-
-	model.save();
-	res.json({
-		config: env[configType][index],
-		message: 'Config created!'
-	});
-});
+// replace TODO?
+app.put(API_PREFIX + '/config/:env/:cfg/:id', function(req, res) {});
 
 /** FUNCTIONS */
-
-app.post(API_PREFIX + '/func/reorderEnv', function(req, res) {
-	var id = req.body.id;
-	var newIndex = req.body.newIndex;
-	if (!model.envConfigs[id]) {
-		res.status(404).json({
-			message: 'Unknown env!'
-		});
-		return;
-	}
-
-	var it = model.envConfigs.splice(id, 1)[0];
-	model.envConfigs.splice(newIndex, 0, it);
-	model.save();
-	res.json({
-		message: 'Env reordered!'
-	});
-});
-
-app.post(API_PREFIX + '/func/duplicateConfig', function(req, res) {
-	var envName = req.body.envName;
-	var configType = req.body.configType;
-	var index = req.body.index;
-
-	var env = model.envConfigs.getByKeyAndValue('envName', envName);
-	var newConfig = env[configType][index].clone();
-	env[configType].push(newConfig);
-	model.save();
-
-	res.json(newConfig);
-});
 
 /** RUNS */
 

@@ -2,6 +2,7 @@ A web application to make some remote server work easier (should be used only lo
 
 Installation
 - Clone
+- run `npm install`
 - Run start.bat in Windows
 - Run start.sh in Linux (/bin/sh)
 

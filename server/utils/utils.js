@@ -35,15 +35,19 @@ Array.prototype.getAllByKeyAndValueNot = function(key, value) {
 };
 
 Array.prototype.addGetByFunctions = function() {
+	var createFunc = function(fnName, key) {
+		Array.prototype[fnName] = function(value) {
+			return this.getByKeyAndValue(key, value);
+		};
+	};
+
 	var funcName = null;
 	for (var name of this) {
 		funcName = 'getBy' + name.capitalize();
 		if (funcName in Array.prototype) {
 			continue;
 		}
-		Array.prototype[funcName] = function(value) {
-			return this.getByKeyAndValue(name, value);
-		};
+		createFunc(funcName, name);
 	}
 };
 
@@ -119,63 +123,6 @@ LinkedList.prototype.unshift = function(value) {
 
 	return this;
 };
-
-/*removeFromHead() {
-	if (this.length === 0) {
-		return undefined;
-	}
-
-	const value = this.head.value;
-	this.head = this.head.next;
-	this.length--;
-
-	return value;
-}
-
-find(val) {
-	let thisNode = this.head;
-
-	while (thisNode) {
-		if (thisNode.value === val) {
-			return thisNode;
-		}
-
-		thisNode = thisNode.next;
-	}
-
-	return thisNode;
-}
-
-remove(val) {
-	if (this.length === 0) {
-		return undefined;
-	}
-
-	if (this.head.value === val) {
-		return this.removeFromHead();
-	}
-
-	let previousNode = this.head;
-	let thisNode = previousNode.next;
-
-	while (thisNode) {
-		if (thisNode.value === val) {
-			break;
-		}
-
-		previousNode = thisNode;
-		thisNode = thisNode.next;
-	}
-
-	if (thisNode === null) {
-		return undefined;
-	}
-
-	previousNode.next = thisNode.next;
-	this.length--;
-	return this;
-}*/
-
 
 // make polyfill
 if (typeof Object.assign != 'function') {
