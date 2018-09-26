@@ -36,13 +36,15 @@ var CONFIG_TYPES = {
 };
 
 function initDb(autoDbInit) {
-	console.log("Preparing DB!");
+	console.log("Starting initialization of DB!");
 	var conn = LocalFileConnector.getInstance(localFilePath);
 	var db = {};
 	try {
 		db = conn.load();
 	} catch (e) {
-		console.log("Creating DB!");
+		console.log(e);
+		console.log("Creating empty DB!");
+		conn.create();
 		conn.save(db);
 	}
 
@@ -65,7 +67,7 @@ var localFilePath;
 var repoFactory;
 
 if (storeType == "local-file") { // TODO: make some store type enum
-	localFilePath = './data/data.json';
+	localFilePath = '.\\data\\data.json';
 	initDb(autoDbInit);
 	repoFactory = RepositoryFactory.getInstance({
 		type: storeType,
