@@ -1,6 +1,7 @@
 A web application to make some remote server work easier (should be used only localy now)
 
 Installation
+- make sure you have `node` installed (tested on version 8.4.0)
 - Clone
 - Run `npm install`
 - Run `start.bat` in Windows or `start.sh` in Linux (/bin/sh)
