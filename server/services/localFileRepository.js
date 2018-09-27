@@ -1,8 +1,7 @@
 /**
  * REPO FOR SINGLE FILE AND AND TABLE
- * Special props for entities [ NO_UPDATE_FIELDS, TABLE_NAME ]
+ * Special props for entities [ NO_UPDATE_FIELDS, TABLE_NAME, NO_CLIENT_UPDATE ]
  */
-console.log("-- loading LocalFileRepository --");
 
 var instances = {};
 
@@ -36,7 +35,6 @@ var getDbData = function(id) {
 
 var getCurrentTableId = function(id, tableName) {
 	var i = dataMap[id] ? (dataMap[id].tableIds ? dataMap[id].tableIds[tableName] : undefined) : undefined;
-	console.log("getting increment: " + i);
 	return i;
 };
 
@@ -53,7 +51,7 @@ var computeCurrentTableId = function(id, tableName) {
 	}, {
 		id: 0
 	}).id;
-	console.log("INCREMENT COMPUTED: " + i);
+	console.log("Increment computed: " + i);
 	dataMap[id].tableIds[tableName] = i;
 };
 
@@ -73,7 +71,7 @@ var fillTableSpecificationListRecursivelly = function(proto, listName, result) {
 // CONSTRUCTOR
 
 var LocalFileRepository = function(connector, entityConstructor) {
-	console.log("constructing LocalFileRepository!");
+	console.log("constructing LocalFileRepository for table: " + entityConstructor.TABLE_NAME);
 	this.tableName = entityConstructor.TABLE_NAME;
 	this.entityConstructor = entityConstructor;
 	this.conn = connector;
@@ -83,11 +81,9 @@ var LocalFileRepository = function(connector, entityConstructor) {
 	fillTableSpecificationListRecursivelly((new entityConstructor()).__proto__, "NO_UPDATE_FIELDS", this.noUpdateFields);
 	fillTableSpecificationListRecursivelly((new entityConstructor()).__proto__, "NO_CLIENT_UPDATE_FIELDS", this.noClientUpdateFields);
 
-	console.log("id: " + this.id);
-	console.log("table name: " + this.tableName);
-	console.log("NO UPDATE:");
+	console.log("No update fields:");
 	console.log(this.noUpdateFields);
-	console.log("NO CLIENT:");
+	console.log("No client update fields:");
 	console.log(this.noClientUpdateFields);
 
 	if (getDbData(this.id) === undefined) {
@@ -101,6 +97,7 @@ var LocalFileRepository = function(connector, entityConstructor) {
 	if (getDbData(this.id)[this.tableName] === undefined) {
 		throw new Error(`DB ${this.tableName} is not present!`);
 	}
+	console.log("LocalFileRepository for table: " + entityConstructor.TABLE_NAME + " constructed");
 };
 
 // REPO FUNC

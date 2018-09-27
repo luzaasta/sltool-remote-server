@@ -1,6 +1,6 @@
-console.log("-- loading RepositoryFactory --");
 var LocalFileConnector = require('../services/localFileConnector');
 var LocalFileRepository = require('../services/localFileRepository');
+// more connectors and repo should follow if needed
 
 var instances = {};
 var repoInstances = {};

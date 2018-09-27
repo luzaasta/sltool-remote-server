@@ -1,4 +1,3 @@
-console.log("-- loading EnvironmentRepository --");
 var Environment = require('../entity/environment');
 
 var EnvironmentRepository = function() {

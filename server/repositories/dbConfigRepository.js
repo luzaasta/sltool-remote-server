@@ -1,4 +1,3 @@
-console.log("-- loading DbConfigRepository --");
 var Db_config = require('../entity/db_config');
 
 var DbConfigRepository = function() {

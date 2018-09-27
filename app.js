@@ -35,54 +35,83 @@ var CONFIG_TYPES = {
 	}
 };
 
-function initDb(autoDbInit) {
-	console.log("Starting initialization of DB!");
+function verifyLocalFileDb(verifyDbTables, localFilePath) {
+	console.log("Local file DB verification started");
 	var conn = LocalFileConnector.getInstance(localFilePath);
 	var db = {};
 	try {
 		db = conn.load();
 	} catch (e) {
-		console.log(e);
-		console.log("Creating empty DB!");
+		console.log(e.message);
+		console.log("Creating local file DB");
 		conn.create();
 		conn.save(db);
 	}
 
-	if (autoDbInit) {
-		console.log("Automatic initialization of DB started!");
+	if (verifyDbTables) {
+		console.log("Table verification started");
+		var changed = false;
 		for (constructor of entities) {
 			if (!Array.isArray(db[constructor.TABLE_NAME])) {
+				console.log("Creating table: " + constructor.TABLE_NAME);
 				db[constructor.TABLE_NAME] = [];
+				changed = true;
 			}
 		}
 
-		conn.save(db);
-		console.log("Automatic initialization of DB ended!");
+		if (changed) {
+			conn.save(db);
+		}
+		console.log("Table verification ended");
+	}
+
+	console.log("Local file DB verification ended");
+}
+
+var storeTypeArg = null;
+var verifyDbTablesArg = null;
+
+function parseArgs() {
+	if (process.argv[2] === "--help") {
+		console.log("Arguments: [ [argName] [value]]...");
+		console.log("  -storeType\t\t\tDB type. Now only 'local-file', default is 'local-file'");
+		console.log("  -createTables\t\t\ttrue or false, default is true");
+		process.exit(0);
+	}
+
+	var storeTypeArgI = process.argv.indexOf("-storeType");
+	if (storeTypeArgI > -1) {
+		storeTypeArg = process.argv[storeTypeArgI + 1];
+	} else {
+		storeTypeArg = "local-file";
+	}
+
+	var verifyDbTablesArgI = process.argv.indexOf("-createTables");
+	if (verifyDbTablesArgI > -1) {
+		verifyDbTablesArg = process.argv[verifyDbTablesArgI + 1];
+	} else {
+		verifyDbTablesArg = "true";
 	}
 }
 
-var storeType = process.argv[2] || "local-file";
-var autoDbInit = process.argv[3] || 'true';
-var localFilePath;
-var repoFactory;
+parseArgs();
 
-if (storeType == "local-file") { // TODO: make some store type enum
-	localFilePath = '.\\data\\data.json';
-	initDb(autoDbInit);
+var repoFactory;
+if (storeTypeArg == "local-file") { // TODO: make some store type enum
+	var localFilePath = '.\\data\\data.json';
+	verifyLocalFileDb(verifyDbTablesArg, localFilePath);
 	repoFactory = RepositoryFactory.getInstance({
-		type: storeType,
+		type: storeTypeArg,
 		filePath: localFilePath
 	});
-} else if (storeType == 'mongo') { // mongo db selected
+} else if (storeTypeArg == 'mongo') { // mongo db selected (maybe in future)
+} else {
+	console.log("Unsupported store type: only 'local-file' store type is now supported!");
+	process.exit(1);
 }
 
 
 var envRepo = repoFactory.getRepoInstance(EnvironmentRepository);
-//envRepo.save({name: "test"});
-var dbRepo = repoFactory.getRepoInstance(DbConfigRepository);
-//dbRepo.save({name: "db1", env_id: 1});
-var sshRepo = repoFactory.getRepoInstance(SshConfigRepository);
-//sshRepo.save({name: "ssh1", env_id: 1});
 
 // static serving
 // app.use(express.static(__dirname + '\\client\\public\\view'));
@@ -295,23 +324,87 @@ app.get(API_PREFIX + '/refresh/:type/:id', function(req, res) {
 function runSingleInEnv(configType, config) {
 	var def = deferred();
 	var result = {};
-
 	CONFIG_TYPES[configType].CONNECTOR_FUNC(config, result).then(
 		function() {
+			console.log(`Config '${config.name}' of type '${configType}' has run`);
 			config.last_run_date = +new Date();
 			config.last_run_state = !!result.failed;
 			config.last_run_message = result.message;
-			def.resolve();
+			def.resolve(config);
 		},
 		function() {
-			def.resolve("CONNECTOR FAILED");
+			def.resolve("Connector failed!");
 		});
 
 	return def.promise;
 }
 
+function runAll() {
+	var def = deferred();
+
+	var configs = null;
+	var configType = null;
+
+	var envs = envRepo.getAll();
+	var configRunPromises = [];
+
+	for (var env of envs) {
+		for (configType in CONFIG_TYPES) {
+			configs = repoFactory.getRepoInstance(CONFIG_TYPES[configType].REPO_CONSTRUCTOR).getAllByKeyAndValue('env_id', env.id);
+			for (var config of configs) {
+				configRunPromises.push(runSingleInEnv(configType, config).then(
+					getResolveConfigTypeRunFunction(configType),
+					function(res) {
+						console.log("Problem resolving auto run for config!");
+						def.reject();
+					}));
+			}
+		}
+	}
+
+	deferred.map(configRunPromises, function(promise) {
+		return promise;
+	}).then(function() {
+		def.resolve();
+	}, function() {
+		def.reject();
+	});
+
+	return def.promise;
+}
+
+function getResolveConfigTypeRunFunction(configType) {
+	return function(conf) {
+		console.log(`Resolving auto run for config '${conf.name}' of type '${configType}'`);
+		repoFactory.getRepoInstance(CONFIG_TYPES[configType].REPO_CONSTRUCTOR).save(conf, true);
+	};
+}
+
+/*function getResolveConfigTypeRunFunction(configType) {
+	return function(array) {
+		console.log("Resolving auto run for config type: " + configType);
+		for (var conf of array) {
+			repoFactory.getRepoInstance(CONFIG_TYPES[configType].REPO_CONSTRUCTOR).save(conf, true);
+		}
+	};
+}*/
+
+var schedule = null;
+
+function scheduleAutoRun() {
+	schedule = setInterval(function() {
+		console.log("Scheduled auto run started");
+		runAll();
+		console.log("Scheduled auto run ended");
+	}, 1000 * 60 * 60 * 24);
+
+	return runAll();
+}
+
 /** LISTEN */
 
-app.listen(3000, function() {
-	console.log('App listening on port 3000!');
+scheduleAutoRun().then(function() {
+	app.listen(3001, function() {
+		console.log('App listening on port 3001!');
+	});
 });
