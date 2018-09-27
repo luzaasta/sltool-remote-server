@@ -5,6 +5,7 @@ var app = express();
 var bodyParser = require('body-parser');
 
 require('./server/utils/utils.js');
+var ping = require('./server/service_connectors/ping');
 
 var LocalFileConnector = require('./server/services/localFileConnector');
 var RepositoryFactory = require('./server/services/repositoryFactory');
@@ -324,17 +325,29 @@ app.get(API_PREFIX + '/refresh/:type/:id', function(req, res) {
 function runSingleInEnv(configType, config) {
 	var def = deferred();
 	var result = {};
-	CONFIG_TYPES[configType].CONNECTOR_FUNC(config, result).then(
-		function() {
-			console.log(`Config '${config.name}' of type '${configType}' has run`);
-			config.last_run_date = +new Date();
-			config.last_run_state = !!result.failed;
-			config.last_run_message = result.message;
-			def.resolve(config);
-		},
-		function() {
-			def.resolve("Connector failed!");
-		});
+
+	ping(config.host)
+		.then(
+			function() {
+				return CONFIG_TYPES[configType].CONNECTOR_FUNC(config, result);
+			},
+			function() {
+				console.log(`Host for config '${config.name}' of type '${configType}' is unreachable`);
+				result.failed = true;
+				result.message = "Host unreachable";
+				return deferred.resolve();
+			})
+		.then(
+			function() {
+				console.log(`Config '${config.name}' of type '${configType}' has run`);
+				config.last_run_date = +new Date();
+				config.last_run_state = !!result.failed;
+				config.last_run_message = result.message;
+				def.resolve(config);
+			},
+			function() {
+				def.resolve("Connector failed!");
+			});
 
 	return def.promise;
 }

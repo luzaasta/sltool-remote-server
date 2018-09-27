@@ -121,11 +121,7 @@ factory('modelService', function() {
 	var Ssh_config = function(obj) {
 		Config.call(this, obj);
 
-		this.connection_conf = obj && obj.connection_conf ? new SshConnectionConf(obj.connection_conf) : null;
 		this.path_test = obj && obj.path_test ? obj.path_test : null;
-	};
-
-	var SshConnectionConf = function(obj) {
 		this.host = obj && obj.host ? obj.host : null;
 		this.username = obj && obj.username ? obj.username : null;
 		this.password = obj && obj.password ? obj.password : null;
@@ -165,9 +161,6 @@ factory('modelService', function() {
 
 	//------------------------------------------------
 	Ssh_config.API = Config.API + "/ssh";
-	SshConnectionConf.prototype.SshConnectionConf = function() {
-		return new SshConnectionConf(this);
-	};
 
 
 	var e = new Environment();

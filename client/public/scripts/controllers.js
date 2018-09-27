@@ -578,7 +578,7 @@ controller('mainController', ['$rootScope', '$scope', '$http', '$timeout', '$win
 			return "never";
 		}
 
-		return (new Date(conf.last_run_date)).toLocaleString();
+		return (new Date(conf.last_run_date)).toLocaleString("cs-CZ");
 	};
 
 }]);
