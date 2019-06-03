@@ -8,21 +8,19 @@ var pool = new Pool();
 pool.setMaxPoolSize(20);
 pool.setConnectTimeout(5);
 
-function refreshAccess(conf, result) {
+function refreshAccess(conf) {
 	var funcName = "access" + conf.db_type;
 	if (!accessFn[funcName]) {
-		result.failed = true;
-		result.message = "Unknown DB type";
-		return deferred(1);
+		return deferred.reject("Unknown DB type");
 	}
 
-	return accessFn["access" + conf.db_type](conf, result);
+	return accessFn["access" + conf.db_type](conf);
 }
 
 var accessFn = {
 
 	// access postgreSQL
-	accessPostgreSQL: function(conf, result) {
+	accessPostgreSQL: function(conf) {
 		var def = deferred();
 
 		var connectionString = `postgresql://${conf.user}:${conf.pass}@${conf.host}:${conf.port}/${conf.db}`;
@@ -30,30 +28,26 @@ var accessFn = {
 		var client = new pgdb.Client(connectionString);
 		client.connect(function(err) {
 			if (err) {
-				result.failed = true;
-				result.message = err.toString();
 				client.end();
-				def.resolve();
+				def.reject(err.toString());
 			}
 		});
 		var dst = conf.schema == "" ? conf.table : conf.schema + '.' + conf.table;
 		client.query(`SELECT * FROM ${dst} LIMIT(5)`, function(err, res) {
 			if (err) {
-				result.failed = true;
-				result.message = err.toString();
+				def.reject(err.toString());
 			} else {
-				result.message = "Access OK and refreshed!";
+				def.resolve("OK");
 			}
 
 			client.end();
-			def.resolve();
 		});
 
 		return def.promise;
 	},
 
 	// access DB2
-	accessDB2: function(conf, result) {
+	accessDB2: function(conf) {
 		var def = deferred();
 
 		var connStr = `DRIVER={DB2};DATABASE=${conf.db};UID=${conf.user};PWD=${conf.pass};HOSTNAME=${conf.host};port=${conf.port}`;
@@ -66,12 +60,10 @@ var accessFn = {
 		pool.open(connStr, function(err, conn) {
 			if (err) {
 				/*
-				 * On error in connection, log the error message on console
+				 * On error in connection
 				 */
-				// result.push("error: ", err.message);
-				result.failed = true;
-				result.message = err.toString();
-				def.resolve();
+				def.reject(err.toString());
+				return;
 			} else {
 				/*
 				 * On successful connection issue the SQL query by calling the query() function on Database
@@ -81,10 +73,9 @@ var accessFn = {
 				var dst = conf.schema == "" ? conf.table : conf.schema + '.' + conf.table;
 				conn.query(`SELECT * FROM ${dst} fetch first 5 rows only`, function(err, rows, moreResultSets) {
 					if (err) {
-						result.failed = true;
-						result.message = err.toString();
+						def.reject(err.toString());
 					} else {
-						result.message = "Access OK and refreshed!";
+						def.resolve("OK");
 					}
 
 					/*
@@ -99,7 +90,6 @@ var accessFn = {
 					 * param 1: The callback function to execute on completion of close function.
 					 */
 					conn.close();
-					def.resolve();
 				});
 			}
 		});

@@ -10,16 +10,17 @@ var ping = function(host) {
 	});
 
 	child.stderr.on('data', function(data) {
-		console.error(data.toString());
+		out += data.toString();
+		def.reject(out);
 	});
 
-	child.on('exit', function() {
+	child.on('exit', function(data) {
 		if (out.indexOf("Request timed out") > -1) {
-			def.reject();
+			def.reject(out);
 			return;
 		}
 
-		def.resolve();
+		def.resolve(out);
 	});
 
 	return def.promise;

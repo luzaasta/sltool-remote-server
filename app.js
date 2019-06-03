@@ -147,15 +147,14 @@ app.get('/', function(req, res) {
 	}
 });
 
-var API_BASE = /api/;
+var API_BASE = "/api/";
 var API_VERSION = "v1";
 var API_PREFIX = API_BASE + API_VERSION;
 
-app.get(API_PREFIX + '/ping/:id', function(req, res) {
+// TODO?
+app.get(API_PREFIX + '/ping/:id', function(req, res) {});
 
-});
-
-/** ALL DATA */
+/** GET ALL DATA */
 
 app.get(API_PREFIX + '/data', function(req, res) {
 	var list = [];
@@ -163,6 +162,7 @@ app.get(API_PREFIX + '/data', function(req, res) {
 
 	var envs = envRepo.getAll();
 
+	// get related configs to environment
 	for (var env of envs) {
 		configs = {};
 		for (var type in CONFIG_TYPES) {
@@ -317,7 +317,8 @@ app.get(API_PREFIX + '/refresh/:type/:id', function(req, res) {
 		},
 		function(res) {
 			console.log("RUN SINGLE FAILED: " + res);
-		});
+		}
+	);
 });
 
 /** FUNC */
@@ -328,25 +329,27 @@ function runSingleInEnv(configType, config) {
 
 	ping(config.host)
 		.then(
-			function() {
-				return CONFIG_TYPES[configType].CONNECTOR_FUNC(config, result);
+			function(res) {
+				return CONFIG_TYPES[configType].CONNECTOR_FUNC(config);
 			},
-			function() {
-				console.log(`Host for config '${config.name}' of type '${configType}' is unreachable`);
-				result.failed = true;
-				result.message = "Host unreachable";
-				return deferred.resolve();
+			function(err) {
+				var msg = `-- RUN SINGLE: PING FAILED\n`;
+				return deferred.reject(msg + err);
 			})
 		.then(
-			function() {
-				console.log(`Config '${config.name}' of type '${configType}' has run`);
+			function(res) {
+				console.log(res + `\n-- RUN SINGLE OK_OK: CONFIG '${config.name}' OF TYPE '${configType}'`);
 				config.last_run_date = +new Date();
-				config.last_run_state = !!result.failed;
-				config.last_run_message = result.message;
+				config.last_run_state = false;
+				config.last_run_message = res;
 				def.resolve(config);
 			},
-			function() {
-				def.resolve("Connector failed!");
+			function(err) {
+				console.error(err + `\n-- RUN SINGLE FAILED: CONFIG '${config.name}' OF TYPE '${configType}'`);
+				config.last_run_date = +new Date();
+				config.last_run_state = true;
+				config.last_run_message = err;
+				def.resolve(config);
 			});
 
 	return def.promise;
@@ -365,30 +368,36 @@ function runAll() {
 		for (configType in CONFIG_TYPES) {
 			configs = repoFactory.getRepoInstance(CONFIG_TYPES[configType].REPO_CONSTRUCTOR).getAllByKeyAndValue('env_id', env.id);
 			for (var config of configs) {
-				configRunPromises.push(runSingleInEnv(configType, config).then(
-					getResolveConfigTypeRunFunction(configType),
-					function(res) {
-						console.log("Problem resolving auto run for config!");
-						def.reject();
-					}));
+				configRunPromises.push(
+					runSingleInEnv(configType, config).then(
+						getResolveConfigTypeRunFunction(configType),
+						function(err) {
+							console.log("Problem resolving auto run for config!");
+							def.reject(err);
+						}
+					)
+				);
 			}
 		}
 	}
 
 	deferred.map(configRunPromises, function(promise) {
 		return promise;
-	}).then(function() {
-		def.resolve();
-	}, function() {
-		def.reject();
-	});
+	}).then(
+		function() {
+			def.resolve();
+		},
+		function(err) {
+			def.reject(err);
+		}
+	);
 
 	return def.promise;
 }
 
 function getResolveConfigTypeRunFunction(configType) {
 	return function(conf) {
-		console.log(`Resolving auto run for config '${conf.name}' of type '${configType}'`);
+		console.log(`Saving result of auto run for config '${conf.name}' of type '${configType}'`);
 		repoFactory.getRepoInstance(CONFIG_TYPES[configType].REPO_CONSTRUCTOR).save(conf, true);
 	};
 }
@@ -407,17 +416,31 @@ var schedule = null;
 function scheduleAutoRun() {
 	schedule = setInterval(function() {
 		console.log("Scheduled auto run started");
-		runAll();
+		runAllScheduled();
 		console.log("Scheduled auto run ended");
 	}, 1000 * 60 * 60 * 24);
-
-	return runAll();
 }
 
 /** LISTEN */
+function runAllScheduled(callback) {
+	runAll().then(
+		function() {
+			if (callback) {
+				callback();
+			}
+		},
+		function(res) {
+			console.error("SOMETHING BAD HAPPENED ON AUTORUN!")
+			console.error(res);
+		}
+	);
+}
 
-scheduleAutoRun().then(function() {
+function listen() {
 	app.listen(3001, function() {
 		console.log('App listening on port 3001!');
 	});
-});
+}
+
+scheduleAutoRun();
+runAllScheduled(listen);
