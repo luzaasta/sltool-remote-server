@@ -4,7 +4,7 @@
     "angular": "^1.7.8",
     "bootstrap": "^4.3.1",
     "deferred": "^0.7.10",
-    "express": "^4.17.1",
+    "express": "^4.17.3",
     "ibm_db": "^2.5.2",
     "node-ssh": "^5.1.2",
     "pg": "^7.11.0"
